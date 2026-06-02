@@ -1,0 +1,202 @@
+{
+  "Comment": "AI-powered photo pipeline: Moderate → Process → Tag → Enrich (Bedrock) → Embed (Titan) → Notify",
+  "StartAt": "ModerateContent",
+  "States": {
+
+    "ModerateContent": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ModerationFunctionArn}",
+        "Payload": {
+          "s3Bucket.$":       "$.s3Bucket",
+          "s3Key.$":          "$.s3Key",
+          "actions.$":        "$.actions",
+          "photographerId.$": "$.photographerId"
+        }
+      },
+      "ResultSelector": {
+        "s3Bucket.$":       "$.Payload.s3Bucket",
+        "s3Key.$":          "$.Payload.s3Key",
+        "actions.$":        "$.Payload.actions",
+        "moderated.$":      "$.Payload.moderated",
+        "photographerId.$": "$.Payload.photographerId"
+      },
+      "ResultPath": "$",
+      "Retry": [{
+        "ErrorEquals": ["Lambda.ServiceException","Lambda.AWSLambdaException","Lambda.SdkClientException"],
+        "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2
+      }],
+      "Catch": [{
+        "ErrorEquals": ["States.ALL"],
+        "Next": "PipelineFailed",
+        "ResultPath": "$.error"
+      }],
+      "Next": "CheckModeration"
+    },
+
+    "CheckModeration": {
+      "Type": "Choice",
+      "Choices": [{
+        "Variable": "$.moderated",
+        "BooleanEquals": true,
+        "Next": "PhotoFlagged"
+      }],
+      "Default": "ProcessImage"
+    },
+
+    "PhotoFlagged": {
+      "Type": "Succeed",
+      "Comment": "Photo quarantined — photographer must review in studio portal"
+    },
+
+    "ProcessImage": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ProcessingFunctionArn}",
+        "Payload": {
+          "s3Bucket.$":       "$.s3Bucket",
+          "s3Key.$":          "$.s3Key",
+          "actions.$":        "$.actions",
+          "photographerId.$": "$.photographerId"
+        }
+      },
+      "ResultSelector": {
+        "photoId.$":        "$.Payload.photoId",
+        "originalKey.$":    "$.Payload.originalKey",
+        "thumbnailKey.$":   "$.Payload.thumbnailKey",
+        "previewKey.$":     "$.Payload.previewKey",
+        "photographerId.$": "$.Payload.photographerId"
+      },
+      "ResultPath": "$",
+      "Retry": [{
+        "ErrorEquals": ["Lambda.ServiceException","Lambda.AWSLambdaException","Lambda.SdkClientException"],
+        "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2
+      }],
+      "Catch": [{
+        "ErrorEquals": ["States.ALL"],
+        "Next": "PipelineFailed",
+        "ResultPath": "$.error"
+      }],
+      "Next": "TagImage"
+    },
+
+    "TagImage": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${TaggingFunctionArn}",
+        "Payload": {
+          "photoId.$":      "$.photoId",
+          "originalKey.$":  "$.originalKey",
+          "thumbnailKey.$": "$.thumbnailKey",
+          "previewKey.$":   "$.previewKey"
+        }
+      },
+      "ResultPath": null,
+      "Retry": [{
+        "ErrorEquals": ["Lambda.ServiceException","Lambda.AWSLambdaException","Lambda.SdkClientException"],
+        "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2
+      }],
+      "Catch": [{
+        "ErrorEquals": ["States.ALL"],
+        "Next": "PipelineFailed",
+        "ResultPath": "$.error"
+      }],
+      "Next": "EnrichWithAI"
+    },
+
+    "EnrichWithAI": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${BedrockEnrichFunctionArn}",
+        "Payload": {
+          "photoId.$": "$.photoId"
+        }
+      },
+      "ResultPath": null,
+      "Retry": [{
+        "ErrorEquals": ["Lambda.ServiceException","Lambda.AWSLambdaException","Lambda.SdkClientException"],
+        "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2
+      }],
+      "Catch": [{
+        "ErrorEquals": ["States.ALL"],
+        "Next": "PipelineFailed",
+        "ResultPath": "$.error"
+      }],
+      "Next": "EmbedPhoto"
+    },
+
+    "EmbedPhoto": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${EmbedPhotoFunctionArn}",
+        "Payload": {
+          "photoId.$": "$.photoId"
+        }
+      },
+      "ResultPath": null,
+      "Retry": [{
+        "ErrorEquals": ["Lambda.ServiceException","Lambda.AWSLambdaException","Lambda.SdkClientException"],
+        "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2
+      }],
+      "Catch": [{
+        "ErrorEquals": ["States.ALL"],
+        "Next": "PipelineFailed",
+        "ResultPath": "$.error"
+      }],
+      "Next": "NotifyProcessed"
+    },
+
+    "NotifyProcessed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::events:putEvents",
+      "Parameters": {
+        "Entries": [{
+          "EventBusName": "${GalleriaEventBusName}",
+          "Source": "galleria.pipeline",
+          "DetailType": "photo.processed",
+          "Detail": {
+            "photoId.$":        "$.photoId",
+            "photographerId.$": "$.photographerId",
+            "thumbnailKey.$":   "$.thumbnailKey",
+            "previewKey.$":     "$.previewKey",
+            "status": "success"
+          }
+        }]
+      },
+      "ResultPath": null,
+      "Retry": [{
+        "ErrorEquals": ["States.TaskFailed"],
+        "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2
+      }],
+      "Catch": [{
+        "ErrorEquals": ["States.ALL"],
+        "Next": "PipelineFailed",
+        "ResultPath": "$.error"
+      }],
+      "End": true
+    },
+
+    "PipelineFailed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::events:putEvents",
+      "Parameters": {
+        "Entries": [{
+          "EventBusName": "${GalleriaEventBusName}",
+          "Source": "galleria.pipeline",
+          "DetailType": "photo.pipeline.failed",
+          "Detail": {
+            "error.$": "$.error"
+          }
+        }]
+      },
+      "ResultPath": null,
+      "End": true
+    }
+
+  }
+}

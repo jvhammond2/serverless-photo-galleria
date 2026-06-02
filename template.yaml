@@ -1,0 +1,2210 @@
+# Deployment order: (1) sam deploy --config-env default  (2) copy Outputs ARNs into samconfig.toml euwest1 profile  (3) sam deploy --config-env euwest1
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Serverless Photo Galleria — multi-region serverless photo marketplace (Lambda, API Gateway, DynamoDB Global Tables, CloudFront, Cognito, Step Functions, Bedrock, WAF, EventBridge).
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+Parameters:
+
+  IsPrimaryRegion:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: >
+      'true'  → primary deployment (us-east-1 by default).
+               Creates Cognito pools, DynamoDB Global Tables, and SNS topic.
+      'false' → secondary region deployment.
+               Skips global singletons; Lambda functions reference the
+               tables/pools already created by the primary deployment.
+
+  PrimaryCustomerUserPoolArn:
+    Type: String
+    Default: ''
+    Description: >
+      CustomerUserPool ARN from the primary-region Outputs (CustomerUserPoolArn).
+      Required when IsPrimaryRegion=false so API Gateway can validate
+      Cognito JWTs issued by the primary pool.
+
+  PrimaryGalleriaUserPoolArn:
+    Type: String
+    Default: ''
+    Description: >
+      GalleriaUserPool ARN from the primary-region Outputs (UserPoolArn).
+      Required when IsPrimaryRegion=false.
+
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, prod]
+    Description: >
+      Deployment environment. 'dev' enables auto-confirm on Cognito and relaxes
+      some operational controls. 'prod' enforces full security posture.
+
+  AlarmEmail:
+    Type: String
+    Default: ''
+    Description: >
+      Email address that receives CloudWatch alarm notifications (DLQ depth,
+      API 5xx rate, Step Functions failures). Leave blank to skip SNS subscription.
+
+  CdnWafWebAclArn:
+    Type: String
+    Default: ''
+    Description: >
+      ARN of the CLOUDFRONT-scope WAF WebACL created in the primary (us-east-1)
+      stack. Pass this to secondary-region stacks so they attach the same WAF
+      to their CloudFront distributions.
+      Leave blank in the primary region — the primary creates and uses its own WebACL.
+
+  PrimaryEventBusArn:
+    Type: String
+    Default: ''
+    Description: >
+      ARN of the GalleriaEventBus created in the primary (us-east-1) stack.
+      Required when IsPrimaryRegion=false so secondary-region events are
+      forwarded to the primary bus for centralised notifications.
+      Leave blank in the primary region.
+
+# =============================================================================
+# CONDITIONS
+# =============================================================================
+Conditions:
+  IsPrimaryRegion:       !Equals [!Ref IsPrimaryRegion, 'true']
+  IsDevEnvironment:      !Equals [!Ref Environment, 'dev']
+  HasAlarmEmail:         !Not [!Equals [!Ref AlarmEmail, '']]
+  HasCdnWafArn:          !Not [!Equals [!Ref CdnWafWebAclArn, '']]
+  HasPrimaryEventBusArn: !Not [!Equals [!Ref PrimaryEventBusArn, '']]
+
+# =============================================================================
+# GLOBALS
+# =============================================================================
+Globals:
+  Function:
+    Runtime: python3.13
+    Timeout: 15
+    MemorySize: 512
+    Tracing: Active
+    LoggingConfig:
+      LogFormat: JSON
+  Api:
+    TracingEnabled: true
+
+# =============================================================================
+# RESOURCES
+# =============================================================================
+Resources:
+
+  # ===========================================================================
+  # COGNITO — CREATOR / ADMIN POOL
+  # Condition: created in the primary region only.
+  # Secondary-region API GW authorizers reference the primary pool via
+  # PrimaryGalleriaUserPoolArn parameter.
+  # ===========================================================================
+  GalleriaUserPool:
+    Type: AWS::Cognito::UserPool
+    Condition: IsPrimaryRegion
+    Properties:
+      UserPoolName: galleria-user-pool
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      LambdaConfig:
+        PreSignUp: !GetAtt CognitoAutoConfirmFunction.Arn
+
+  GalleriaUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Condition: IsPrimaryRegion
+    Properties:
+      UserPoolId: !Ref GalleriaUserPool
+      ClientName: galleria-web-client
+      GenerateSecret: false
+
+  UserPoolPreSignUpLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: IsPrimaryRegion
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CognitoAutoConfirmFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt GalleriaUserPool.Arn
+
+  # ===========================================================================
+  # COGNITO — ISOLATED CUSTOMER POOL
+  # ===========================================================================
+  CustomerUserPool:
+    Type: AWS::Cognito::UserPool
+    Condition: IsPrimaryRegion
+    Properties:
+      UserPoolName: customer-user-pool
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      LambdaConfig:
+        PreSignUp: !GetAtt CognitoAutoConfirmFunction.Arn
+
+  CustomerUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Condition: IsPrimaryRegion
+    Properties:
+      UserPoolId: !Ref CustomerUserPool
+      ClientName: customer-web-client
+      GenerateSecret: false
+
+  CustomerUserPoolPreSignUpPermission:
+    Type: AWS::Lambda::Permission
+    Condition: IsPrimaryRegion
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CognitoAutoConfirmFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt CustomerUserPool.Arn
+
+  # ===========================================================================
+  # SHARED AUTO-CONFIRMATION TRIGGER
+  # Deployed everywhere — Cognito only calls it in the primary region,
+  # but keeping it present avoids missing-resource errors on updates.
+  # ===========================================================================
+  CognitoAutoConfirmFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: "Auto-verifies users in both Cognito pools (enabled in dev only)"
+      InlineCode: |
+        exports.handler = async (event) => {
+            const autoConfirm = process.env.AUTO_CONFIRM === 'true';
+            console.log(`Registration for ${event.userName}, autoConfirm=${autoConfirm}`);
+            if (autoConfirm) {
+                event.response.autoConfirmUser = true;
+                event.response.autoVerifyEmail = true;
+            }
+            return event;
+        };
+      Handler: index.handler
+      Runtime: nodejs18.x
+      Timeout: 5
+      Environment:
+        Variables:
+          AUTO_CONFIRM: !If [IsDevEnvironment, 'true', 'false']
+
+  # ===========================================================================
+  # S3 — THREE-BUCKET PIPELINE
+  # Bucket names include ${AWS::Region} so each regional deployment gets its
+  # own set of buckets.  Versioning is enabled on all three pipeline buckets —
+  # this is required for S3 Cross-Region Replication (CRR) should you add it
+  # later, and also enables object recovery from accidental deletes.
+  # ===========================================================================
+  OriginalsS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD']
+            AllowedOrigins: ['*']
+            ExposedHeaders: ['ETag']
+      # FinOps: tier originals to cheaper storage over time.
+      LifecycleConfiguration:
+        Rules:
+          - Id: ArchiveOriginalMasters
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+              - TransitionInDays: 90
+                StorageClass: GLACIER
+
+  ThumbsS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: ['GET', 'HEAD']
+            AllowedOrigins: ['*']
+            ExposedHeaders: ['ETag']
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldThumbnailVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+
+  FullSizePreviewsS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: ['GET', 'HEAD']
+            AllowedOrigins: ['*']
+            ExposedHeaders: ['ETag']
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldPreviewVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+
+  # ===========================================================================
+  # DYNAMODB GLOBAL TABLES
+  # Created ONLY from the primary-region stack (Condition: IsPrimaryRegion).
+  # DynamoDB Global Tables automatically replicate data to all listed replica
+  # regions with single-digit-millisecond read latency in each region.
+  #
+  # Lambda functions reference tables by their deterministic names using
+  # !Sub so they resolve correctly in both primary and secondary regions.
+  #
+  # To add or remove replica regions, update the Replicas list below and
+  # redeploy the primary-region stack.
+  # ===========================================================================
+  PhotoMetadataTable:
+    Type: AWS::DynamoDB::GlobalTable
+    Condition: IsPrimaryRegion
+    Properties:
+      TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+      BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      AttributeDefinitions:
+        - AttributeName: photoId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: photoId
+          KeyType: HASH
+      Replicas:
+        - Region: us-east-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+        - Region: eu-west-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+
+  ShoppingCartTable:
+    Type: AWS::DynamoDB::GlobalTable
+    Condition: IsPrimaryRegion
+    Properties:
+      TableName: !Sub ${AWS::StackName}-shopping-cart-${AWS::AccountId}
+      BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      Replicas:
+        - Region: us-east-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+        - Region: eu-west-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+
+  PhotographerProfileTable:
+    Type: AWS::DynamoDB::GlobalTable
+    Condition: IsPrimaryRegion
+    Properties:
+      TableName: !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
+      BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      AttributeDefinitions:
+        - AttributeName: profileId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: profileId
+          KeyType: HASH
+      Replicas:
+        - Region: us-east-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+        - Region: eu-west-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+
+  OrdersTable:
+    Type: AWS::DynamoDB::GlobalTable
+    Condition: IsPrimaryRegion
+    Properties:
+      TableName: !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+      BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      AttributeDefinitions:
+        - AttributeName: sessionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sessionId
+          KeyType: HASH
+      Replicas:
+        - Region: us-east-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+        - Region: eu-west-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+
+  # ===========================================================================
+  # DYNAMODB — PRIVACY / COMPLIANCE TABLES
+  #
+  # UserConsentTable  — stores each user's consent record (GDPR Art. 7).
+  #                     GlobalTable so EU users' consent is read/written
+  #                     locally in eu-west-1 without a cross-Atlantic hop.
+  #
+  # AuditLogTable     — append-only log of every access to personal data
+  #                     (GDPR Art. 30 records of processing). Single-region
+  #                     (primary only) with 7-year TTL to keep costs minimal.
+  # ===========================================================================
+  UserConsentTable:
+    Type: AWS::DynamoDB::GlobalTable
+    Condition: IsPrimaryRegion
+    Properties:
+      TableName: !Sub ${AWS::StackName}-user-consent-${AWS::AccountId}
+      BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: consentVersion
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: consentVersion
+          KeyType: RANGE
+      Replicas:
+        - Region: us-east-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+        - Region: eu-west-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+
+  AuditLogTable:
+    Type: AWS::DynamoDB::Table
+    Condition: IsPrimaryRegion
+    Properties:
+      TableName: !Sub ${AWS::StackName}-audit-log-${AWS::AccountId}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: auditId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: auditId
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      # TTL attribute — set to epoch seconds 7 years from now on each record.
+      # DynamoDB auto-expires records after that date, keeping storage costs flat.
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # ===========================================================================
+  # EVENTBRIDGE — GALLERIA CUSTOM EVENT BUS
+  # Replaces per-region SNS topics.  Step Functions publish photo.processed
+  # and photo.pipeline.failed events here.
+  #
+  # Cross-region flow:
+  #   Primary (us-east-1):   bus + notification rule → AlarmTopic (email)
+  #   Secondary (eu-west-1): bus + forwarding rule   → primary bus
+  # Photographers subscribe once (to the primary AlarmTopic) and receive
+  # notifications from both regions.
+  # ===========================================================================
+  GalleriaEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub ${AWS::StackName}-events-${AWS::Region}
+
+  # Primary region only: route photo.processed events to the ops AlarmTopic
+  # so the photographer receives an email when each photo is ready.
+  PhotoProcessedNotifyRule:
+    Type: AWS::Events::Rule
+    Condition: IsPrimaryRegion
+    Properties:
+      Name: !Sub ${AWS::StackName}-photo-processed-notify
+      EventBusName: !Ref GalleriaEventBus
+      EventPattern:
+        source: [galleria.pipeline]
+        detail-type: [photo.processed]
+      State: ENABLED
+      Targets:
+        - Id: AlarmTopicTarget
+          Arn: !Ref AlarmTopic
+
+  # Primary region only: allow EventBridge to publish to AlarmTopic
+  AlarmTopicEventBridgePolicy:
+    Type: AWS::SNS::TopicPolicy
+    Condition: IsPrimaryRegion
+    Properties:
+      Topics: [!Ref AlarmTopic]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref AlarmTopic
+            Condition:
+              ArnLike:
+                aws:SourceArn: !GetAtt PhotoProcessedNotifyRule.Arn
+
+  # Secondary regions: forward all pipeline events to the primary event bus
+  # so the single notification rule in us-east-1 handles both regions.
+  CrossRegionForwardRole:
+    Type: AWS::IAM::Role
+    Condition: HasPrimaryEventBusArn
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-eb-forward-role-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: PutEventsToPrimaryBus
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: events:PutEvents
+                Resource: !Ref PrimaryEventBusArn
+
+  CrossRegionForwardRule:
+    Type: AWS::Events::Rule
+    Condition: HasPrimaryEventBusArn
+    Properties:
+      Name: !Sub ${AWS::StackName}-cross-region-forward
+      EventBusName: !Ref GalleriaEventBus
+      EventPattern:
+        source: [galleria.pipeline]
+      State: ENABLED
+      Targets:
+        - Id: PrimaryEventBusTarget
+          Arn: !Ref PrimaryEventBusArn
+          RoleArn: !GetAtt CrossRegionForwardRole.Arn
+
+  # ===========================================================================
+  # SHARED LAMBDA DEAD-LETTER QUEUE
+  # All Lambda functions send failed invocation payloads here.
+  # DlqDepthAlarm fires when any message lands so nothing fails silently.
+  # ===========================================================================
+  LambdaDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-lambda-dlq-${AWS::Region}
+      MessageRetentionPeriod: 1209600  # 14 days
+
+  # ===========================================================================
+  # SNS — OPERATIONS ALARM TOPIC
+  # Receives CloudWatch alarm notifications for DLQ depth, API 5xx rate, and
+  # Step Functions failures.  Subscribe AlarmEmail only when provided.
+  # ===========================================================================
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWS::StackName}-ops-alarms-${AWS::Region}
+
+  AlarmEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlarmEmail
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: email
+      Endpoint: !Ref AlarmEmail
+
+  # ===========================================================================
+  # WAF — REGIONAL (API GATEWAY)
+  # Protects every API Gateway stage in this region.
+  # Rules: AWS Common Rule Set + rate-based throttle (500 req / 5 min per IP).
+  # ===========================================================================
+  ApiWafWebAcl:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub ${AWS::StackName}-api-waf-${AWS::Region}
+      Scope: REGIONAL
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub ${AWS::StackName}-api-waf
+      Rules:
+        - Name: AWSManagedCommonRuleSet
+          Priority: 0
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub ${AWS::StackName}-common-rules
+        - Name: RateLimitPerIp
+          Priority: 1
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 500
+              AggregateKeyType: IP
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub ${AWS::StackName}-rate-limit
+
+  ApiWafAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    DependsOn: GalleriaApiProdStage
+    Properties:
+      ResourceArn: !Sub arn:aws:apigateway:${AWS::Region}::/restapis/${GalleriaApi}/stages/Prod
+      WebACLArn: !GetAtt ApiWafWebAcl.Arn
+
+  # ===========================================================================
+  # WAF — CLOUDFRONT (global scope, must live in us-east-1)
+  # Condition: IsPrimaryRegion keeps this in the us-east-1 stack only.
+  # The ARN is exported so secondary-region stacks can attach it to their
+  # CloudFront distributions via the CdnWafWebAclArn parameter.
+  # ===========================================================================
+  CdnWafWebAcl:
+    Type: AWS::WAFv2::WebACL
+    Condition: IsPrimaryRegion
+    Properties:
+      Name: !Sub ${AWS::StackName}-cdn-waf
+      Scope: CLOUDFRONT
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub ${AWS::StackName}-cdn-waf
+      Rules:
+        - Name: AWSManagedCommonRuleSet
+          Priority: 0
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub ${AWS::StackName}-cdn-common-rules
+        - Name: RateLimitPerIp
+          Priority: 1
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 500
+              AggregateKeyType: IP
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: !Sub ${AWS::StackName}-cdn-rate-limit
+
+  # ===========================================================================
+  # CLOUDTRAIL — MANAGEMENT EVENTS ONLY (primary region, cost-optimised)
+  # Data events (S3 object-level, Lambda invocations) are NOT enabled here to
+  # keep costs low.  Enable them selectively in CloudTrail console if needed.
+  # ===========================================================================
+  CloudTrailLogsBucket:
+    Type: AWS::S3::Bucket
+    Condition: IsPrimaryRegion
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-cloudtrail-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldTrailLogs
+            Status: Enabled
+            ExpirationInDays: 365
+
+  CloudTrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: IsPrimaryRegion
+    Properties:
+      Bucket: !Ref CloudTrailLogsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AclCheck
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt CloudTrailLogsBucket.Arn
+          - Sid: WriteTrailLogs
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub ${CloudTrailLogsBucket.Arn}/AWSLogs/${AWS::AccountId}/*
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: bucket-owner-full-control
+
+  AppCloudTrail:
+    Type: AWS::CloudTrail::Trail
+    Condition: IsPrimaryRegion
+    DependsOn: CloudTrailBucketPolicy
+    Properties:
+      TrailName: !Sub ${AWS::StackName}-trail
+      S3BucketName: !Ref CloudTrailLogsBucket
+      IsLogging: true
+      IsMultiRegionTrail: false
+      IncludeGlobalServiceEvents: true
+      EnableLogFileValidation: true
+
+  # ===========================================================================
+  # CLOUDWATCH ALARMS
+  # ===========================================================================
+  DlqDepthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-dlq-depth-${AWS::Region}
+      AlarmDescription: "Lambda DLQ has messages — investigate failed invocations"
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt LambdaDLQ.QueueName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  ApiGateway5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-api-5xx-${AWS::Region}
+      AlarmDescription: "API Gateway 5xx error rate is elevated"
+      Namespace: AWS/ApiGateway
+      MetricName: 5XXError
+      Dimensions:
+        - Name: ApiName
+          Value: !Ref GalleriaApi
+        - Name: Stage
+          Value: Prod
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  StepFunctionFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-pipeline-failures-${AWS::Region}
+      AlarmDescription: "Photo processing pipeline is failing"
+      Namespace: AWS/States
+      MetricName: ExecutionsFailed
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref PhotoPipelineStateMachine
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  # ===========================================================================
+  # API GATEWAY
+  # The Cognito authorizer ARNs use !If so secondary-region stacks validate
+  # JWTs against the same primary-region Cognito pools.  This means a customer
+  # who registers in us-east-1 can seamlessly use the eu-west-1 API endpoint
+  # without re-registering.
+  # ===========================================================================
+  GalleriaApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'OPTIONS,POST,GET,PUT,DELETE'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      Auth:
+        DefaultAuthorizer: CustomerCognito
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          CustomerCognito:
+            UserPoolArn: !If
+              - IsPrimaryRegion
+              - !GetAtt CustomerUserPool.Arn
+              - !Ref PrimaryCustomerUserPoolArn
+          PhotographerCognito:
+            UserPoolArn: !If
+              - IsPrimaryRegion
+              - !GetAtt GalleriaUserPool.Arn
+              - !Ref PrimaryGalleriaUserPoolArn
+
+  # ===========================================================================
+  # STEP FUNCTIONS — PHOTO PROCESSING PIPELINE
+  # ===========================================================================
+  PhotoPipelineStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: statemachine/photo_pipeline.asl.json
+      DefinitionSubstitutions:
+        ModerationFunctionArn:    !GetAtt ModerationFunction.Arn
+        ProcessingFunctionArn:    !GetAtt ProcessingFunction.Arn
+        TaggingFunctionArn:       !GetAtt TaggingFunction.Arn
+        BedrockEnrichFunctionArn: !GetAtt BedrockEnrichFunction.Arn
+        EmbedPhotoFunctionArn:    !GetAtt EmbedPhotoFunction.Arn
+        GalleriaEventBusName:     !Ref GalleriaEventBus
+      Tracing:
+        Enabled: true
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ModerationFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ProcessingFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref TaggingFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref BedrockEnrichFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref EmbedPhotoFunction
+        - Statement:
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !GetAtt GalleriaEventBus.Arn
+
+  # ===========================================================================
+  # LAMBDA — CUSTOMER-FACING & EGRESS FUNCTIONS
+  # ===========================================================================
+
+  DownloadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/download/
+      Handler: app.handler
+      Runtime: python3.13
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          PREVIEWS_BUCKET: !Ref FullSizePreviewsS3Bucket
+          METADATA_TABLE:  !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+      Events:
+        SecureDownload:
+          Type: Api
+          Properties:
+            Path: /get-download-url
+            Method: post
+            RestApiId: !Ref GalleriaApi
+
+  ShoppingCartFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.handler
+      CodeUri: src/cart/
+      Runtime: python3.13
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          CART_TABLE: !Sub ${AWS::StackName}-shopping-cart-${AWS::AccountId}
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-shopping-cart-${AWS::AccountId}
+      Events:
+        CartPost:
+          Type: Api
+          Properties:
+            Path: /cart
+            Method: post
+            RestApiId: !Ref GalleriaApi
+        CartDelete:
+          Type: Api
+          Properties:
+            Path: /cart
+            Method: delete
+            RestApiId: !Ref GalleriaApi
+        CartGet:
+          Type: Api
+          Properties:
+            Path: /cart
+            Method: get
+            RestApiId: !Ref GalleriaApi
+
+  SearchImagesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.handler
+      CodeUri: src/search/
+      Runtime: python3.13
+      Timeout: 30
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          METADATA_TABLE:          !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          THUMBS_BUCKET:           !Ref ThumbsS3Bucket
+          PREVIEWS_BUCKET:         !Ref FullSizePreviewsS3Bucket
+          THUMBS_DISTRIBUTION_URL: !Sub "https://${ThumbsDistribution.DomainName}"
+          PAGE_SIZE: "24"
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              # Region-agnostic ARN — works in every supported Bedrock region
+              Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0"
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt LambdaDLQ.QueueName
+      Events:
+        SearchApiRoute:
+          Type: Api
+          Properties:
+            Path: /list-images
+            Method: get
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: NONE
+
+  TaggingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.handler
+      CodeUri: src/tagging/
+      Runtime: python3.13
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          METADATA_TABLE:   !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          THUMBS_BUCKET:    !Ref ThumbsS3Bucket
+          ORIGINALS_BUCKET: !Ref OriginalsS3Bucket
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action:
+                - rekognition:DetectLabels
+              Resource: '*'
+
+  ListImagesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/list_images/
+      Handler: app.handler
+      Runtime: python3.13
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          THUMBS_BUCKET: !Ref ThumbsS3Bucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+      Events:
+        ListImages:
+          Type: Api
+          Properties:
+            Path: /admin/list-images
+            Method: get
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: NONE
+
+  ProcessingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/processing/
+      Handler: app.handler
+      Runtime: python3.13
+      Timeout: 60
+      MemorySize: 1024
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          ORIGINALS_BUCKET: !Ref OriginalsS3Bucket
+          THUMBS_BUCKET:    !Ref ThumbsS3Bucket
+          PREVIEWS_BUCKET:  !Ref FullSizePreviewsS3Bucket
+          PROFILE_TABLE:    !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
+          WATERMARK_TEXT:   "© Galleria"
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
+
+  LikePhotoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/like/
+      Handler: app.handler
+      Runtime: python3.13
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          METADATA_TABLE: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+      Events:
+        LikeRoute:
+          Type: Api
+          Properties:
+            Path: /like
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: CustomerCognito
+
+  # ===========================================================================
+  # PRESIGNED UPLOAD URL
+  # Generates a time-limited S3 PUT URL so the browser uploads directly to S3
+  # without routing bytes through API Gateway (avoids the 10 MB limit).
+  # The originals bucket in the current region receives the upload; the Step
+  # Functions pipeline then runs in the same region.
+  # ===========================================================================
+  GetUploadUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/upload_url/
+      Handler: app.handler
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          ORIGINALS_BUCKET: !Ref OriginalsS3Bucket
+      Policies:
+        - S3WritePolicy:
+            BucketName: !Ref OriginalsS3Bucket
+      Events:
+        GetUploadUrl:
+          Type: Api
+          Properties:
+            Path: /get-upload-url
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
+
+  # Thin wrapper for POST /process — adds CORS headers that a direct
+  # Step Functions service integration cannot provide.
+  TriggerPipelineFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/trigger_pipeline/
+      Handler: app.handler
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Ref PhotoPipelineStateMachine
+          ORIGINALS_BUCKET:  !Ref OriginalsS3Bucket
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: states:StartExecution
+              Resource: !Ref PhotoPipelineStateMachine
+      Events:
+        TriggerPipeline:
+          Type: Api
+          Properties:
+            Path: /process
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
+
+  DeletePhotoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/delete_photo/
+      Handler: app.handler
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          METADATA_TABLE:   !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          ORIGINALS_BUCKET: !Ref OriginalsS3Bucket
+          THUMBS_BUCKET:    !Ref ThumbsS3Bucket
+          PREVIEWS_BUCKET:  !Ref FullSizePreviewsS3Bucket
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - S3CrudPolicy:
+            BucketName: !Ref OriginalsS3Bucket
+        - S3CrudPolicy:
+            BucketName: !Ref ThumbsS3Bucket
+        - S3CrudPolicy:
+            BucketName: !Ref FullSizePreviewsS3Bucket
+      Events:
+        DeletePhoto:
+          Type: Api
+          Properties:
+            Path: /delete-photo
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
+
+  # ===========================================================================
+  # LAMBDA — AI PIPELINE FUNCTIONS (Step Functions only, no API routes)
+  # ===========================================================================
+
+  # Step 1 — Rekognition content moderation. Quarantines photos that trigger
+  # moderation labels above the confidence threshold.
+  ModerationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/moderation/
+      Handler: app.handler
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          METADATA_TABLE: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action: rekognition:DetectModerationLabels
+              Resource: "*"
+            - Effect: Allow
+              Action: s3:GetObject
+              Resource: !Sub ${OriginalsS3Bucket.Arn}/*
+
+  # Step 5 — Bedrock enrichment. Calls Claude 3 Haiku to generate an AI title,
+  # gallery description, and suggested price.
+  # Resource ARN uses ${AWS::Region} — check Bedrock model availability in each
+  # deployment region before going live (Haiku is available in all four target
+  # regions as of 2025).
+  BedrockEnrichFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/bedrock_enrich/
+      Handler: app.handler
+      Timeout: 30
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          METADATA_TABLE: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+
+  # Step 6 — Titan Embeddings. Generates a 256-dim semantic embedding from the
+  # AI description + tags for natural-language search.
+  EmbedPhotoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/embed_photo/
+      Handler: app.handler
+      Timeout: 30
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          METADATA_TABLE: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0"
+
+  ProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/profile/
+      Handler: app.handler
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          PROFILE_TABLE:  !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
+          METADATA_TABLE: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          THUMBS_BUCKET:  !Ref ThumbsS3Bucket
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+      Events:
+        GetProfile:
+          Type: Api
+          Properties:
+            Path: /profile
+            Method: get
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: NONE
+        PutProfile:
+          Type: Api
+          Properties:
+            Path: /profile
+            Method: put
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
+        GetFlagged:
+          Type: Api
+          Properties:
+            Path: /admin/flagged
+            Method: get
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
+        ApprovePhoto:
+          Type: Api
+          Properties:
+            Path: /admin/approve
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
+
+  # ===========================================================================
+  # LAMBDA — PHASE 3 BUSINESS LOGIC FUNCTIONS
+  #
+  # UnlikePhotoFunction    POST /unlike          Remove a like from a photo
+  # EarningsDashboardFunc  GET  /earnings        Photographer revenue dashboard
+  # RefundFunction         POST /refund          Initiate Stripe refund
+  # ===========================================================================
+
+  UnlikePhotoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/unlike/
+      Handler: app.handler
+      Runtime: python3.13
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          METADATA_TABLE: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt LambdaDLQ.QueueName
+      Events:
+        UnlikeRoute:
+          Type: Api
+          Properties:
+            Path: /unlike
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: CustomerCognito
+
+  EarningsDashboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/earnings/
+      Handler: app.handler
+      Runtime: python3.13
+      Timeout: 30
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          METADATA_TABLE: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          ORDERS_TABLE:   !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+          PROFILE_TABLE:  !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt LambdaDLQ.QueueName
+      Events:
+        EarningsGet:
+          Type: Api
+          Properties:
+            Path: /earnings
+            Method: get
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
+
+  RefundFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/refund/
+      Handler: app.handler
+      Runtime: python3.13
+      Timeout: 30
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          ORDERS_TABLE:            !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+          METADATA_TABLE:          !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          STRIPE_SECRET_KEY_PARAM: /serverless-photo-galleria/stripe-secret-key
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/serverless-photo-galleria/stripe-secret-key
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt LambdaDLQ.QueueName
+      Events:
+        RefundPost:
+          Type: Api
+          Properties:
+            Path: /refund
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: CustomerCognito
+
+  # ===========================================================================
+  # LAMBDA — PRIVACY / GDPR COMPLIANCE FUNCTIONS
+  #
+  # ConsentFunction      POST /consent        Record user consent
+  #                      GET  /consent        Retrieve current consent record
+  # DeleteAccountFunction POST /delete-account GDPR Art.17 right to erasure
+  # MyDataFunction        GET  /my-data        GDPR Art.20 data portability
+  # DpaAcceptFunction     POST /dpa-accept     GDPR Art.28 photographer DPA
+  # ===========================================================================
+
+  ConsentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/consent/
+      Handler: app.handler
+      Runtime: python3.13
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          CONSENT_TABLE:          !Sub ${AWS::StackName}-user-consent-${AWS::AccountId}
+          AUDIT_LOG_TABLE:        !Sub ${AWS::StackName}-audit-log-${AWS::AccountId}
+          CONSENT_VERSION_PARAM:  /serverless-photo-galleria/consent-version
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-user-consent-${AWS::AccountId}
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-audit-log-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/serverless-photo-galleria/consent-version
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt LambdaDLQ.QueueName
+      Events:
+        RecordConsent:
+          Type: Api
+          Properties:
+            Path: /consent
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: CustomerCognito
+        GetConsent:
+          Type: Api
+          Properties:
+            Path: /consent
+            Method: get
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: CustomerCognito
+
+  DeleteAccountFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/delete_account/
+      Handler: app.handler
+      Runtime: python3.13
+      Timeout: 30
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          CONSENT_TABLE:   !Sub ${AWS::StackName}-user-consent-${AWS::AccountId}
+          CART_TABLE:      !Sub ${AWS::StackName}-shopping-cart-${AWS::AccountId}
+          ORDERS_TABLE:    !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+          AUDIT_LOG_TABLE: !Sub ${AWS::StackName}-audit-log-${AWS::AccountId}
+          # Cognito User Pool IDs for account deletion
+          CUSTOMER_POOL_ID: !If
+            - IsPrimaryRegion
+            - !Ref CustomerUserPool
+            - !Select [1, !Split ["/", !Select [1, !Split ["userpool/", !Ref PrimaryCustomerUserPoolArn]]]]
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-user-consent-${AWS::AccountId}
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-shopping-cart-${AWS::AccountId}
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-audit-log-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminDeleteUser
+                - cognito-idp:AdminGetUser
+              Resource: !If
+                - IsPrimaryRegion
+                - !GetAtt CustomerUserPool.Arn
+                - !Ref PrimaryCustomerUserPoolArn
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt LambdaDLQ.QueueName
+      Events:
+        DeleteAccount:
+          Type: Api
+          Properties:
+            Path: /delete-account
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: CustomerCognito
+
+  MyDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/my_data/
+      Handler: app.handler
+      Runtime: python3.13
+      Timeout: 30
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          CONSENT_TABLE:   !Sub ${AWS::StackName}-user-consent-${AWS::AccountId}
+          CART_TABLE:      !Sub ${AWS::StackName}-shopping-cart-${AWS::AccountId}
+          ORDERS_TABLE:    !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+          METADATA_TABLE:  !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          AUDIT_LOG_TABLE: !Sub ${AWS::StackName}-audit-log-${AWS::AccountId}
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-user-consent-${AWS::AccountId}
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-shopping-cart-${AWS::AccountId}
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-audit-log-${AWS::AccountId}
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt LambdaDLQ.QueueName
+      Events:
+        ExportMyData:
+          Type: Api
+          Properties:
+            Path: /my-data
+            Method: get
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: CustomerCognito
+
+  DpaAcceptFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/dpa_accept/
+      Handler: app.handler
+      Runtime: python3.13
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          PROFILE_TABLE:   !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
+          AUDIT_LOG_TABLE: !Sub ${AWS::StackName}-audit-log-${AWS::AccountId}
+          DPA_VERSION_PARAM: /serverless-photo-galleria/dpa-version
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-audit-log-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/serverless-photo-galleria/dpa-version
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt LambdaDLQ.QueueName
+      Events:
+        AcceptDpa:
+          Type: Api
+          Properties:
+            Path: /dpa-accept
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
+        GetDpaStatus:
+          Type: Api
+          Properties:
+            Path: /dpa-accept
+            Method: get
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
+
+  # ===========================================================================
+  # STRIPE PAYMENT INTEGRATION
+  # Secrets live in SSM Parameter Store (SecureString) — never in source code.
+  # Create them once per region before deploying:
+  #   aws ssm put-parameter --name /serverless-photo-galleria/stripe-secret-key \
+  #     --value sk_test_xxx --type SecureString --region <each-region>
+  #   aws ssm put-parameter --name /serverless-photo-galleria/stripe-webhook-secret \
+  #     --value whsec_xxx --type SecureString --region <each-region>
+  # ===========================================================================
+
+  CreateCheckoutSessionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/create_checkout_session/
+      Handler: app.handler
+      Timeout: 30
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          METADATA_TABLE:           !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          THUMBS_BUCKET:            !Ref ThumbsS3Bucket
+          PREVIEWS_BUCKET:          !Ref FullSizePreviewsS3Bucket
+          ORIGINALS_BUCKET:         !Ref OriginalsS3Bucket
+          CUSTOMER_SITE_URL:        !Sub "https://${PurchaserDistribution.DomainName}"
+          STRIPE_SECRET_KEY_PARAM:  /serverless-photo-galleria/stripe-secret-key
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/serverless-photo-galleria/stripe-secret-key
+      Events:
+        CreateCheckout:
+          Type: Api
+          Properties:
+            Path: /create-checkout-session
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: CustomerCognito
+
+  GetDownloadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/get_download/
+      Handler: app.handler
+      Timeout: 30
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          METADATA_TABLE:           !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          THUMBS_BUCKET:            !Ref ThumbsS3Bucket
+          PREVIEWS_BUCKET:          !Ref FullSizePreviewsS3Bucket
+          ORIGINALS_BUCKET:         !Ref OriginalsS3Bucket
+          ORDERS_TABLE:             !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+          STRIPE_SECRET_KEY_PARAM:  /serverless-photo-galleria/stripe-secret-key
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/serverless-photo-galleria/stripe-secret-key
+      Events:
+        GetDownload:
+          Type: Api
+          Properties:
+            Path: /get-download
+            Method: get
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: NONE
+
+  StripeWebhookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/stripe_webhook/
+      Handler: app.handler
+      Timeout: 30
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          ORDERS_TABLE:                 !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+          STRIPE_SECRET_KEY_PARAM:      /serverless-photo-galleria/stripe-secret-key
+          STRIPE_WEBHOOK_SECRET_PARAM:  /serverless-photo-galleria/stripe-webhook-secret
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource:
+                - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/serverless-photo-galleria/stripe-secret-key
+                - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/serverless-photo-galleria/stripe-webhook-secret
+      Events:
+        StripeWebhook:
+          Type: Api
+          Properties:
+            Path: /stripe-webhook
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: NONE
+
+  # ===========================================================================
+  # LAMBDA — INDIVIDUAL PIPELINE EFFECT FUNCTIONS
+  # (kept for backwards-compatibility; ProcessingFunction is the primary path)
+  # ===========================================================================
+  BlurFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/blur/
+      Handler: app.handler
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          THUMBS_BUCKET:   !Ref ThumbsS3Bucket
+          PREVIEWS_BUCKET: !Ref FullSizePreviewsS3Bucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+
+  CompressFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/compress/
+      Handler: app.handler
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          THUMBS_BUCKET:   !Ref ThumbsS3Bucket
+          PREVIEWS_BUCKET: !Ref FullSizePreviewsS3Bucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+
+  CropFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/crop/
+      Handler: app.handler
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          THUMBS_BUCKET:   !Ref ThumbsS3Bucket
+          PREVIEWS_BUCKET: !Ref FullSizePreviewsS3Bucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+
+  ResizeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/resize/
+      Handler: app.handler
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          THUMBS_BUCKET:   !Ref ThumbsS3Bucket
+          PREVIEWS_BUCKET: !Ref FullSizePreviewsS3Bucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+
+  RotateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/rotate/
+      Handler: app.handler
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          THUMBS_BUCKET:   !Ref ThumbsS3Bucket
+          PREVIEWS_BUCKET: !Ref FullSizePreviewsS3Bucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+
+  WatermarkFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/watermark/
+      Handler: app.handler
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          ORIGINALS_BUCKET: !Ref OriginalsS3Bucket
+          THUMBS_BUCKET:    !Ref ThumbsS3Bucket
+          PREVIEWS_BUCKET:  !Ref FullSizePreviewsS3Bucket
+          WATERMARK_TEXT:   "© Galleria"
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - S3WritePolicy:
+            BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+
+  # ===========================================================================
+  # CLOUDFRONT — SHARED ORIGIN ACCESS CONTROL
+  # One OAC per region (names are scoped per stack + region to avoid conflicts
+  # across multi-region deployments in the same account).
+  # ===========================================================================
+  CloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub ${AWS::StackName}-OAC-${AWS::Region}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # ===========================================================================
+  # CLOUDFRONT — ADMIN / PHOTOGRAPHER FRONTEND (index.html)
+  # ===========================================================================
+  FrontendWebBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-frontend-${AWS::Region}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        # WAF: attach primary-region ACL when present; secondary regions pass
+        # CdnWafWebAclArn parameter.
+        WebACLId: !If
+          - IsPrimaryRegion
+          - !GetAtt CdnWafWebAcl.Arn
+          - !If
+            - HasCdnWafArn
+            - !Ref CdnWafWebAclArn
+            - !Ref AWS::NoValue
+        # Serve index.html for any 403/404 so client-side routing works on
+        # mobile and desktop browsers that deep-link into the SPA.
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        Origins:
+          - Id: FrontendS3Origin
+            DomainName: !GetAtt FrontendWebBucket.RegionalDomainName
+            OriginAccessControlId: !Ref CloudFrontOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: FrontendS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendWebBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontAccess
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${FrontendWebBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}
+
+  # ===========================================================================
+  # CLOUDFRONT — CUSTOMER / PURCHASER FRONTEND (customer.html)
+  # ===========================================================================
+  PurchaserWebBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-purchaser-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  PurchaserDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: customer.html
+        WebACLId: !If
+          - IsPrimaryRegion
+          - !GetAtt CdnWafWebAcl.Arn
+          - !If
+            - HasCdnWafArn
+            - !Ref CdnWafWebAclArn
+            - !Ref AWS::NoValue
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /customer.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /customer.html
+        Origins:
+          - Id: PurchaserS3Origin
+            DomainName: !GetAtt PurchaserWebBucket.RegionalDomainName
+            OriginAccessControlId: !Ref CloudFrontOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: PurchaserS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+
+  PurchaserBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PurchaserWebBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontAccess
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${PurchaserWebBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${PurchaserDistribution}
+
+  # ===========================================================================
+  # CLOUDFRONT — API GATEWAY GLOBAL ACCELERATOR
+  #
+  # Placing CloudFront in front of API Gateway gives every region's API a
+  # globally distributed entry point via 400+ CloudFront PoPs worldwide.
+  # Requests from Tokyo hit the nearest PoP which TCP-proxies to the regional
+  # API Gateway rather than traversing the public internet all the way to
+  # us-east-1.
+  #
+  # Cache policy:  CachingDisabled (4135ea2d) — API responses must never be
+  #                cached at the edge; freshness is critical.
+  # Origin policy: AllViewerExceptHostHeader (b689b0a8) — forwards all headers
+  #                (including Authorization / Content-Type) but lets API GW
+  #                receive its own Host header so request routing works.
+  #
+  # After deploying all four regions, point a Route 53 latency record set at
+  # each region's ApiDistribution DomainName (exported in Outputs below) so
+  # customers automatically resolve to the nearest deployment.
+  # ===========================================================================
+  ApiDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "Galleria API accelerator — ${AWS::Region}"
+        WebACLId: !If
+          - IsPrimaryRegion
+          - !GetAtt CdnWafWebAcl.Arn
+          - !If
+            - HasCdnWafArn
+            - !Ref CdnWafWebAclArn
+            - !Ref AWS::NoValue
+        Origins:
+          - Id: ApiGatewayOrigin
+            DomainName: !Sub "${GalleriaApi}.execute-api.${AWS::Region}.amazonaws.com"
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+            OriginPath: /Prod
+        DefaultCacheBehavior:
+          TargetOriginId: ApiGatewayOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          # Allow all methods so POST /cart, DELETE /cart, etc. all pass through
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [GET, HEAD]
+          # CachingDisabled managed policy — never serve stale API responses
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          # Forward Authorization header + all query strings to API GW
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+
+  # ===========================================================================
+  # CLOUDFRONT — THUMBNAILS CDN
+  # Public read-only distribution so the customer portal can load thumbnails
+  # directly from the nearest CloudFront edge without presigned URLs.
+  # This reduces Lambda invocations on every gallery page load.
+  # ===========================================================================
+  ThumbsDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "Galleria Thumbnails CDN — ${AWS::Region}"
+        WebACLId: !If
+          - IsPrimaryRegion
+          - !GetAtt CdnWafWebAcl.Arn
+          - !If
+            - HasCdnWafArn
+            - !Ref CdnWafWebAclArn
+            - !Ref AWS::NoValue
+        Origins:
+          - Id: ThumbsS3Origin
+            DomainName: !GetAtt ThumbsS3Bucket.RegionalDomainName
+            OriginAccessControlId: !Ref CloudFrontOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: ThumbsS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          DefaultTTL: 86400
+          MaxTTL: 86400
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+
+  ThumbsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ThumbsS3Bucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontAccess
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${ThumbsS3Bucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${ThumbsDistribution}
+
+  # ===========================================================================
+  # CLOUDWATCH SYNTHETICS CANARY
+  # Runs every hour from within this region and checks that the customer
+  # portal is reachable and returns HTTP 2xx.
+  # ===========================================================================
+  CanaryArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-canary-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  CloudWatchSyntheticsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - synthetics.amazonaws.com
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CanaryExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt CanaryArtifactsBucket.Arn
+                  - !Sub ${CanaryArtifactsBucket.Arn}/*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:CreateLogGroup
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/synthetics/canaries/*
+
+  UserExperienceCanary:
+    Type: AWS::Synthetics::Canary
+    Properties:
+      Name: !Sub "galleria-ux-${AWS::Region}"
+      ExecutionRoleArn: !GetAtt CloudWatchSyntheticsRole.Arn
+      ArtifactS3Location: !Sub s3://${CanaryArtifactsBucket}
+      RuntimeVersion: syn-nodejs-puppeteer-9.1
+      Schedule:
+        Expression: "rate(1 hour)"
+      StartCanaryAfterCreation: true
+      Code:
+        Handler: pageLoadBlueprint.handler
+        Script: |
+          const canaryLaunch = require('Synthetics');
+          const log = require('SyntheticsLogger');
+          const pageLoadBlueprint = async function () {
+              let url = `https://${process.env.TARGET_URL}`;
+              let page = await canaryLaunch.getPage();
+              log.info(`Canary check: ${url}`);
+              const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+              if (!response) { throw new Error("Failed to load target page."); }
+              let status = response.status();
+              if (status < 200 || status > 299) { throw new Error(`HTTP ${status} from target`); }
+              log.info("Canary check passed.");
+          };
+          exports.handler = async () => { await pageLoadBlueprint(); };
+      RunConfig:
+        TimeoutInSeconds: 60
+        EnvironmentVariables:
+          TARGET_URL: !GetAtt PurchaserDistribution.DomainName
+
+# =============================================================================
+# OUTPUTS
+# =============================================================================
+Outputs:
+
+  GlobalApiEndpoint:
+    Description: "CloudFront-accelerated API endpoint for this region"
+    Value: !Sub "https://${ApiDistribution.DomainName}"
+
+  RegionalApiEndpoint:
+    Description: "Direct regional API Gateway URL (for debugging)"
+    Value: !Sub "https://${GalleriaApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+
+  UserPoolId:
+    Condition: IsPrimaryRegion
+    Description: "Photographer Cognito User Pool ID (primary region)"
+    Value: !Ref GalleriaUserPool
+
+  UserPoolArn:
+    Condition: IsPrimaryRegion
+    Description: "Photographer pool ARN — pass as PrimaryGalleriaUserPoolArn to eu-west-1"
+    Value: !GetAtt GalleriaUserPool.Arn
+
+  UserPoolClientId:
+    Condition: IsPrimaryRegion
+    Description: "Photographer Cognito App Client ID"
+    Value: !Ref GalleriaUserPoolClient
+
+  CustomerUserPoolId:
+    Condition: IsPrimaryRegion
+    Description: "Customer Cognito User Pool ID (primary region)"
+    Value: !Ref CustomerUserPool
+
+  CustomerUserPoolArn:
+    Condition: IsPrimaryRegion
+    Description: "Customer pool ARN — pass as PrimaryCustomerUserPoolArn to eu-west-1"
+    Value: !GetAtt CustomerUserPool.Arn
+
+  CustomerUserPoolClientId:
+    Condition: IsPrimaryRegion
+    Description: "Customer Cognito App Client ID"
+    Value: !Ref CustomerUserPoolClient
+
+  AdminWebsiteURL:
+    Description: "CloudFront URL for the Creator/Admin portal in this region"
+    Value: !Sub "https://${FrontendDistribution.DomainName}"
+
+  PurchaserWebsiteURL:
+    Description: "CloudFront URL for the Customer Galleria portal in this region"
+    Value: !Sub "https://${PurchaserDistribution.DomainName}"
+
+  FrontendBucketName:
+    Description: "S3 bucket for admin frontend assets in this region"
+    Value: !Ref FrontendWebBucket
+
+  PurchaserBucketName:
+    Description: "S3 bucket for customer frontend assets in this region"
+    Value: !Ref PurchaserWebBucket
+
+  CdnWafWebAclArn:
+    Condition: IsPrimaryRegion
+    Description: "CLOUDFRONT WAF WebACL ARN — pass as CdnWafWebAclArn to eu-west-1"
+    Value: !GetAtt CdnWafWebAcl.Arn
+
+  ThumbsDistributionURL:
+    Description: "CloudFront URL for thumbnails CDN"
+    Value: !Sub "https://${ThumbsDistribution.DomainName}"
+
+  AlarmTopicArn:
+    Description: "SNS topic ARN for CloudWatch alarm notifications"
+    Value: !Ref AlarmTopic
+
+  LambdaDLQUrl:
+    Description: "SQS URL of the shared Lambda dead-letter queue"
+    Value: !Ref LambdaDLQ
+
+  UserConsentTableName:
+    Condition: IsPrimaryRegion
+    Description: "DynamoDB table for user consent records (GDPR Art. 7)"
+    Value: !Sub ${AWS::StackName}-user-consent-${AWS::AccountId}
+
+  AuditLogTableName:
+    Condition: IsPrimaryRegion
+    Description: "DynamoDB append-only audit log (GDPR Art. 30, 7-year TTL)"
+    Value: !Sub ${AWS::StackName}-audit-log-${AWS::AccountId}
+
+  GalleriaEventBusArn:
+    Description: "Custom EventBridge bus ARN — pass as PrimaryEventBusArn to eu-west-1"
+    Value: !GetAtt GalleriaEventBus.Arn
