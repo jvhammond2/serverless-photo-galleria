@@ -1,138 +1,230 @@
-# serverless-photo-galleria
+# 📸 Serverless Photo Galleria
 
-This project contains source code and supporting files for a serverless application that you can deploy with the SAM CLI. It includes the following files and folders:
+A production-grade, multi-region, event-driven photo marketplace built on AWS using the Serverless Application Model (SAM). The platform connects professional photographers with commercial buyers through two isolated web portals, backed by a fully serverless infrastructure with enterprise-grade security, GDPR compliance, and global scalability.
 
-📸 Serverless Photo Galleria
-A production-grade, event-driven serverless web ecosystem built using the AWS Serverless Application Model (SAM) and optimized with a Python 3.13 backend.
+**Live Demo:**
+- 🎨 [Photographer Admin Portal](https://dps7ixpjebpsu.cloudfront.net) — upload, manage, and monetise your photo library
+- 🛍️ [Customer Galleria Portal](https://d1zup6wc9h9uwc.cloudfront.net) — browse, licence, and download professional photography
 
-The platform provides an end-to-end commercial pipeline that decouples professional media processing layers from secure customer asset delivery interfaces. It handles image orchestration natively via serverless microservices, ensuring near-zero idle compute overhead and strict logical scaling.
+---
 
-🏗️ Architecture Design & Visual Mapping
-The application splits system responsibilities into two strictly isolated horizontal layers: the Administrative Ingestion Tier and the Public Presentation Tier.
+## 🏗️ Architecture Overview
 
-                           [ CloudFront / S3 Ingestion ]
-                                         │
-                                         ▼
-                                 Originals Bucket
-                                         │
-                                         ▼
-                              ┌─────────────────────┐
-                              │ AWS Step Functions  │
-                              └──────────┬──────────┘
-                                         │
-                 ┌───────────┬───────────┼───────────┬───────────┐
-                 ▼           ▼           ▼           ▼           ▼
-              ┌──────┐    ┌──────┐    ┌──────┐    ┌──────┐    ┌──────┐
-              │ Blur   │    │ Crop   │    │Resize  │    │Rotate│    │Watermark│
-              └──┬───┘    └───┬──┘    ───┬───┘    ───┬───┘    ───┬───┘
-                 │            │          │           │           │
-                 └────────────┴──────────┼───────────┴───────────┘
-                                         │
-                                         ▼
-                                   Thumbs Bucket
-                                         │
-                ┌────────────────────────┴────────────────────────┐
-                ▼                                                 ▼
-     ┌──────────────────────┐                          ┌──────────────────────┐
-     │  Lambda: ListImages  │                          │   Lambda: Download   │
-     └──────────────────────┘                          └──────────────────────┘
-                ▲                                                 ▲
-                │ (GET /list-images)                              │ (POST /get-download-url)
-                └────────────────────────┬────────────────────────┘
-                                         │
-                                  AWS API Gateway
-                                         │
-                                         ▼
-                            [ Customer Galleria Portal ]
-🛡️ Enterprise Security Implementations
-Multi-Pool Identity Isolation Strategy: Photographers and commercial buyers are contained within physically separate user directories:
+The system splits responsibilities into two strictly isolated tiers — the **Administrative Ingestion Tier** (photographers) and the **Public Presentation Tier** (buyers) — connected only through API Gateway with Cognito authentication enforced at every boundary.
 
-galleria-user-pool (Photographer Authentication Tier)
+```
+[ Photographer Portal ]          [ Customer Portal ]
+        │                                │
+        ▼                                ▼
+  Cognito User Pool              Cognito Customer Pool
+  (Photographer Auth)            (Buyer Auth — zero lateral access)
+        │                                │
+        └──────────── API Gateway (WAFv2 protected) ───────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+        Upload URL       List Images      Purchase/Download
+              │
+              ▼
+      S3 Originals Bucket
+              │
+              ▼
+      AWS Step Functions
+    ┌────┬────┬────┬────┬──────────┐
+    ▼    ▼    ▼    ▼    ▼          ▼
+  Blur Crop Resize Rotate Watermark Compress
+                    │
+                    ▼
+           S3 Thumbnails Bucket
+                    │
+              CloudFront CDN
+```
 
-customer-user-pool (Consumer Egress/Download Tier)
-This ensures that a compromised customer profile has zero lateral vector path into the studio dashboard.
+---
 
-Storage Perimeter Hardening: All direct public anonymous read/write traffic is blocked across the S3 storage layers using bucket access policies and CloudFront Origin Access Controls (OAC).
+## ⚙️ Tech Stack
 
-Least-Privilege RBAC: Lambda execution scopes are strictly restricted down to localized resource boundaries using targeted AWS IAM policy blocks.
+| Layer | Technology |
+|---|---|
+| Infrastructure | AWS SAM / CloudFormation |
+| Compute | AWS Lambda (Python 3.13) |
+| Orchestration | AWS Step Functions (Express Workflows) |
+| Database | DynamoDB GlobalTables (multi-region active-active) |
+| Storage | Amazon S3 (OAC-protected, no public access) |
+| CDN | Amazon CloudFront (4 distributions) |
+| Auth | Amazon Cognito (dual user pool isolation) |
+| API | Amazon API Gateway (REST, Cognito-authorised) |
+| Security | AWS WAFv2 (rate limiting, geo-blocking) |
+| Events | Amazon EventBridge (cross-region pub/sub) |
+| Payments | Stripe (checkout sessions + webhook verification) |
+| Monitoring | CloudWatch Alarms, CloudTrail audit logging |
+| Compliance | GDPR Art. 7, 17, 20, 30 (consent, erasure, portability) |
 
-Decoupled Data Egress (Gatekeeping): The customer portal never queries physical storage. Image indexing is managed exclusively via API Gateway which generates short-lived 300-second pre-signed URLs for asset security.
+---
 
-📂 Repository Structure
-.
-├── src/                               # Python 3.13 Lambda Core Worker Fleet
-│   ├── download/                      # Secure file download pre-signed link engine
-│   │   └── app.py
-│   ├── blur/                          # Core image mutation engines
-│   │   └── app.py
-│   ├── compress/                      # ...
-│   ├── crop/                          # ...
-│   ├── resize/                        # ...
-│   ├── rotate/                        # ...
-│   └── watermark/                     # Complex binary branding engine
+## 🛡️ Security Design
+
+**Dual Cognito Pool Isolation** — Photographers and buyers are authenticated through physically separate user pools. A compromised buyer account has zero lateral path into the photographer dashboard.
+
+**Storage Perimeter Hardening** — All S3 buckets block public access entirely. Assets are served exclusively through CloudFront using Origin Access Control (OAC), with pre-signed URLs (300-second TTL) for downloads.
+
+**Least-Privilege IAM** — Every Lambda function has a scoped execution role granting only the specific actions it needs on the specific resources it touches.
+
+**WAFv2 Protection** — API Gateway and CloudFront distributions are protected by WAFv2 Web ACLs with rate limiting rules to block abuse and DDoS attempts.
+
+**Decoupled Data Egress** — The customer portal never queries S3 directly. All asset access is mediated through API Gateway, which generates short-lived signed URLs via Lambda.
+
+---
+
+## 🔒 GDPR Compliance
+
+The platform implements full GDPR compliance for EU users:
+
+- **Art. 7 — Consent**: `/consent` endpoint records explicit opt-in with timestamp and version
+- **Art. 17 — Right to Erasure**: `/delete-account` triggers full data deletion across all tables
+- **Art. 20 — Data Portability**: `/my-data` exports all personal data as a structured JSON package
+- **Art. 30 — Processing Records**: Append-only DynamoDB audit log with 7-year TTL
+- **DPA Acceptance**: `/dpa-accept` records Data Processing Agreement acceptance for photographer accounts
+
+---
+
+## 📂 Repository Structure
+
+```
+serverless-photo-galleria/
 │
-├── statemachine/                      # AWS Step Functions Configuration
-│   └── photo_pipeline.asl.json        # Declarative State Machine Graph definition
+├── src/                          # Lambda function handlers (Python 3.13)
+│   ├── bedrock_enrich/           # AI-powered photo metadata enrichment (AWS Bedrock)
+│   ├── blur/                     # Image blur processing
+│   ├── cart/                     # Shopping cart management
+│   ├── compress/                 # Image compression
+│   ├── consent/                  # GDPR consent recording
+│   ├── create_checkout_session/  # Stripe checkout integration
+│   ├── crop/                     # Image cropping
+│   ├── delete_account/           # GDPR right to erasure
+│   ├── delete_photo/             # Photo removal
+│   ├── download/                 # Secure asset download
+│   ├── dpa_accept/               # Data Processing Agreement acceptance
+│   ├── earnings/                 # Photographer revenue analytics
+│   ├── embed_photo/              # Photo embed generation
+│   ├── get_download/             # Pre-signed download URL generation
+│   ├── get_upload_url/           # Pre-signed upload URL generation
+│   ├── like/                     # Photo favouriting
+│   ├── list_images/              # Photo catalogue listing
+│   ├── moderation/               # AI content moderation
+│   ├── my_data/                  # GDPR data portability export
+│   ├── processing/               # Step Functions pipeline coordinator
+│   ├── profile/                  # Photographer profile management
+│   ├── refund/                   # Order refund processing
+│   ├── resize/                   # Image resizing
+│   ├── rotate/                   # Image rotation
+│   ├── search/                   # Photo search with pagination
+│   ├── stripe_webhook/           # Stripe payment webhook handler
+│   ├── tagging/                  # AI-powered photo tagging
+│   ├── trigger_pipeline/         # Step Functions pipeline trigger
+│   ├── unlike/                   # Photo unfavouriting
+│   ├── upload_url/               # Upload URL orchestration
+│   └── watermark/                # Photographer watermark application
 │
-├── index.html                         # Photographer Uploader Portal (Admin Panel)
-├── customer.html                      # Customer Galleria Portal (Consumer Client)
-├── amazon-cognito-identity.min.js     # Cryptographic local client security module
-└── template.yaml                      # Unified CloudFormation / SAM Infrastructure Draft
-🚀 Deployment & Operational Run-Sheet
-Prerequisites
-AWS CLI installed and configured with valid IAM Administrator credentials.
+├── statemachine/
+│   └── photo_pipeline.asl.json   # Step Functions state machine definition
+│
+├── index.html                    # Photographer Admin Portal (single-file SPA)
+├── customer.html                 # Customer Galleria Portal (single-file SPA)
+├── amazon-cognito-identity.min.js # Cognito JS SDK (local, no CDN dependency)
+├── template.yaml                 # SAM / CloudFormation infrastructure definition
+└── tests/                        # Unit and integration tests
+```
 
-AWS SAM CLI installed.
+---
 
-Supported text editor.
+## 🚀 Deployment
 
-1. Backend Cloud Infrastructure Setup
-Compile your serverless resources and deploy the centralized CloudFormation stack using the AWS SAM framework:
+### Prerequisites
 
-PowerShell
+- AWS CLI configured with Administrator credentials
+- AWS SAM CLI installed (`pip install aws-sam-cli`)
+- Python 3.13
+
+### 1. Build and Deploy (Primary Region — us-east-1)
+
+```powershell
 sam build
-sam deploy
-Upon successful deployment, copy the dynamic resources from the Outputs block printed in your terminal window:
+sam deploy --config-env default --guided
+```
 
-GalleriaApiEndpoint
+On first run `--guided` will prompt for parameters and write them to `samconfig.toml` (gitignored). On subsequent runs omit `--guided`.
 
-UserPoolId & UserPoolClientId
+### 2. Note the Outputs
 
-CustomerUserPoolId & CustomerUserPoolClientId
+After deployment completes, copy these values from the Outputs block:
 
-AdminWebsiteURL
+| Output Key | Used For |
+|---|---|
+| `AdminWebsiteURL` | CloudFront URL for photographer portal |
+| `PurchaserWebsiteURL` | CloudFront URL for customer portal |
+| `RegionalApiEndpoint` | API Gateway direct URL |
+| `UserPoolId` / `UserPoolClientId` | Photographer Cognito config |
+| `CustomerUserPoolId` / `CustomerUserPoolClientId` | Customer Cognito config |
+| `CdnWafWebAclArn` | Pass to secondary region deploy |
+| `UserPoolArn` | Pass to secondary region deploy |
+| `GalleriaEventBusArn` | Pass to secondary region deploy |
 
-PurchaserWebsiteURL
+### 3. Deploy Frontend Files to S3
 
-2. Frontend Configuration
-Open your local index.html (Admin) and customer.html (Customer) files and update their corresponding CONFIG blocks with your fresh backend values:
-
-JavaScript
-const CONFIG = {
-    UserPoolId: 'us-east-1_XXXXXXXXX', 
-    ClientId: 'XXXXXXXXXXXXXXXXXXXXXXXXXX',
-    ApiEndpoint: 'https://XXXXXX.execute-api.us-east-1.amazonaws.com/Prod/process',
-    GetUploadUrlEndpoint: '...',
-    ListImagesEndpoint: '...'
-};
-3. Static Web Deployment & CDN Clearing
-Push your secure frontend files up to their dedicated S3 bucket silos and force a global CloudFront Content Delivery Network invalidation:
-
-PowerShell
-# Deploy Administrative Dashboard Panel
+```powershell
+# Photographer Admin Portal
 aws s3 cp .\index.html s3://serverless-photo-galleria-frontend-[ACCOUNT-ID]/index.html
 aws s3 cp .\amazon-cognito-identity.min.js s3://serverless-photo-galleria-frontend-[ACCOUNT-ID]/amazon-cognito-identity.min.js
-aws cloudfront create-invalidation --distribution-id [ADMIN-DISTRIBUTION-ID] --paths "/*"
 
-# Deploy Consumer Presentation Client
-aws s3 cp .\customer.html s3://serverless-photo-galleria-purchaser-frontend-[ACCOUNT-ID]/index.html
-aws s3 cp .\amazon-cognito-identity.min.js s3://serverless-photo-galleria-purchaser-frontend-[ACCOUNT-ID]/amazon-cognito-identity.min.js
-aws cloudfront create-invalidation --distribution-id [CUSTOMER-DISTRIBUTION-ID] --paths "/*"
-🔄 Core Data Flow Mechanics
-Ingestion Loop: Photographer logs in via index.html ──► Requests pre-signed upload URL ──► Browser pushes raw master file directly to the Originals S3 Bucket.
+# Customer Galleria Portal
+aws s3 cp .\customer.html s3://serverless-photo-galleria-purchaser-[ACCOUNT-ID]/customer.html
+aws s3 cp .\amazon-cognito-identity.min.js s3://serverless-photo-galleria-purchaser-[ACCOUNT-ID]/amazon-cognito-identity.min.js
 
-Orchestration Loop: S3 arrival triggers API Gateway POST /process ──► Hands off tracking pointer to AWS Step Functions ──► State machine routes data layer across parallel Python 3.13 worker Lambdas ──► Finished asset drops securely into private Thumbs S3 Bucket.
+# Invalidate CloudFront cache
+aws cloudfront create-invalidation --distribution-id [ADMIN-DIST-ID] --paths "/*"
+aws cloudfront create-invalidation --distribution-id [PURCHASER-DIST-ID] --paths "/*"
+```
 
-Egress Secure Read Loop: Consumer accesses customer.html ──► Authenticates with independent credentials ──► Executes GET /list-images ──► ListImages Lambda queries private bucket, signs keys, and securely maps 300-second view feeds.
+---
 
-Egress Secure Save Loop: Consumer triggers asset download ──► Fires authenticated POST /get-download-url ──► Download Lambda outputs high-resolution time-expired access channel to complete local hardware file transfer.
+## 🔄 Core Data Flows
+
+**Photo Upload & Processing**
+Photographer logs in → requests pre-signed upload URL → browser pushes master file directly to S3 Originals bucket → S3 event triggers Step Functions → state machine fans out to parallel Lambda workers (blur, crop, resize, rotate, watermark, compress) → processed thumbnails land in private Thumbs bucket → metadata written to DynamoDB.
+
+**Customer Browse & Purchase**
+Customer authenticates via isolated Cognito pool → `GET /search` returns paginated, signed thumbnail URLs → customer adds to cart → Stripe checkout session created → payment webhook confirms purchase → order recorded in DynamoDB → `POST /get-download-url` issues 300-second pre-signed URL for full-resolution download.
+
+**Cross-Region Event Propagation**
+Purchase and upload events are published to EventBridge custom bus → events replicate to secondary region bus → regional Lambda subscribers process events locally, ensuring consistent state across DynamoDB GlobalTables in both regions.
+
+---
+
+## 📊 DynamoDB Tables (GlobalTables — Active-Active Multi-Region)
+
+| Table | Purpose |
+|---|---|
+| `PhotoMetadataTable` | Photo catalogue, tags, pricing, photographer ownership |
+| `ShoppingCartTable` | Active customer carts |
+| `PhotographerProfileTable` | Photographer profiles, watermark config, earnings |
+| `OrdersTable` | Completed purchase records |
+| `UserConsentTable` | GDPR consent records (Art. 7) |
+| `AuditLogTable` | Append-only compliance audit log (Art. 30, 7-year TTL) |
+
+---
+
+## 🌍 Multi-Region Support
+
+The template supports active-active deployment across two regions. The primary region (`us-east-1`) deploys all resources. The secondary region (`eu-west-1`) is deployed by passing outputs from the primary as parameters:
+
+```powershell
+sam deploy --config-env eu-west-1 \
+  --parameter-overrides \
+    PrimaryGalleriaUserPoolArn=[UserPoolArn from primary] \
+    PrimaryCustomerUserPoolArn=[CustomerUserPoolArn from primary] \
+    PrimaryEventBusArn=[GalleriaEventBusArn from primary] \
+    CdnWafWebAclArn=[CdnWafWebAclArn from primary]
+```
+
+DynamoDB GlobalTables automatically replicate data between regions with sub-second latency.
