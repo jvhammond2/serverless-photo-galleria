@@ -299,8 +299,11 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
       <button class="auth-tab" onclick="switchAuthTab('signup')">Create Account</button>
     </div>
     <div id="signinForm">
-      <input id="siEmail" class="auth-field" type="email" placeholder="Email address">
-      <input id="siPass" class="auth-field" type="password" placeholder="Password">
+      <input id="siEmail" class="auth-field" type="email" placeholder="Email address" autocomplete="email">
+      <input id="siPass" class="auth-field" type="password" placeholder="Password" autocomplete="current-password">
+      <div style="text-align:right;margin-top:-8px;margin-bottom:14px">
+        <button onclick="switchAuthTab('forgot')" style="background:none;border:none;font-size:12px;color:var(--text-2);cursor:pointer;padding:0;font-family:inherit">Forgot password?</button>
+      </div>
       <button class="auth-submit" onclick="doSignIn()">Sign In</button>
     </div>
     <div id="signupForm" style="display:none">
@@ -311,8 +314,19 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
     </div>
     <div id="confirmForm" style="display:none">
       <p style="font-size:13px;color:var(--text-2);margin-bottom:14px">Check your email for the confirmation code.</p>
-      <input id="confCode" class="auth-field" type="text" placeholder="Confirmation code">
+      <input id="confCode" class="auth-field" type="text" placeholder="Confirmation code" autocomplete="one-time-code">
       <button class="auth-submit" onclick="doConfirm()">Verify Account</button>
+    </div>
+    <div id="forgotForm" style="display:none">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:14px">Enter your email and we'll send a reset code.</p>
+      <input id="fpEmail" class="auth-field" type="email" placeholder="Email address" autocomplete="email">
+      <button class="auth-submit" id="fpSendBtn" onclick="doSendResetCode()">Send Reset Code</button>
+    </div>
+    <div id="resetForm" style="display:none">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:14px">Check your email for the verification code.</p>
+      <input id="fpCode" class="auth-field" type="text" placeholder="Verification code" autocomplete="one-time-code">
+      <input id="fpNewPass" class="auth-field" type="password" placeholder="New password (min 8 chars)" autocomplete="new-password">
+      <button class="auth-submit" id="fpConfirmBtn" onclick="doConfirmReset()">Reset Password</button>
     </div>
     <div id="authStatus" class="auth-status"></div>
   </div>
@@ -392,11 +406,11 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
           <div class="section-sub">Drag &amp; drop or click · JPEG, PNG, WebP, TIFF</div></div>
         </div>
         <div class="upload-zone" id="uploadZone">
-          <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/tiff" onchange="onFileSelect(this)">
+          <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/tiff" multiple onchange="onFileSelect(this)">
           <div class="upload-icon"><i class="ti ti-cloud-upload"></i></div>
-          <div class="upload-title">Drop your master image here</div>
-          <div class="upload-hint">or click anywhere in this box</div>
-          <div class="upload-fmts">JPEG · PNG · WebP · TIFF · up to 50 MB</div>
+          <div class="upload-title">Drop your photos here</div>
+          <div class="upload-hint">or click to select one or more files</div>
+          <div class="upload-fmts">JPEG · PNG · WebP · TIFF · up to 50 MB each</div>
         </div>
         <div class="file-selected" id="fileSelected">
           <i class="ti ti-file-check" style="color:var(--green)"></i>
@@ -615,12 +629,12 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
 <script>
 const CONFIG={
-  UserPoolId:'us-east-1_RD43bXBbH',
-  ClientId:'5v66898b22b6qusnhhlh3i8bcc',
-  ApiBase:'https://lwdhx8hyzi.execute-api.us-east-1.amazonaws.com/Prod',
+  UserPoolId:'us-east-1_MMG0QjcVQ',
+  ClientId:'3rqpspijo2jb5lhkmd4ogq44vu',
+  ApiBase:'https://e7rst7vbhc.execute-api.us-east-1.amazonaws.com/Prod',
 };
 const userPool=new AmazonCognitoIdentity.CognitoUserPool({UserPoolId:CONFIG.UserPoolId,ClientId:CONFIG.ClientId});
-let currentIdToken=null,currentUser=null,_currentView='upload';
+let currentIdToken=null,currentUser=null,currentSub=null,_currentView='upload';
 
 const EFFECTS=[
   {id:'hdr',       icon:'ti-sun-high',    name:'HDR Tone Map',    desc:'Expand dynamic range'},
@@ -638,7 +652,7 @@ const EFFECTS=[
   {id:'vintage',   icon:'ti-clock-vintage',name:'Vintage Fade',    desc:'Faded chrome look'},
   {id:'aerial',    icon:'ti-drone',        name:'Aerial Grade',    desc:'Muted haze for drone'},
 ];
-let selectedEffects=new Set(),isLimitedEdition=false,selectedFile=null;
+let selectedEffects=new Set(),isLimitedEdition=false,selectedFile=null,selectedFiles=[];
 let lbSelectedEffects=new Set();
 let _lbPhoto=null;
 
@@ -682,12 +696,44 @@ function refreshCurrent(){
 
 /* === Auth === */
 function switchAuthTab(tab){
+  const isForgot=tab==='forgot'||tab==='reset';
   document.querySelectorAll('.auth-tab').forEach((t,i)=>
     t.classList.toggle('active',(i===0&&tab==='signin')||(i===1&&tab==='signup')));
   document.getElementById('signinForm').style.display=tab==='signin'?'block':'none';
   document.getElementById('signupForm').style.display=tab==='signup'?'block':'none';
   document.getElementById('confirmForm').style.display='none';
+  document.getElementById('forgotForm').style.display=tab==='forgot'?'block':'none';
+  document.getElementById('resetForm').style.display=tab==='reset'?'block':'none';
+  const title=document.querySelector('.auth-title');
+  const sub=document.querySelector('.auth-sub');
+  if(tab==='forgot'||tab==='reset'){title.textContent='Reset Password';sub.textContent='We\'ll send a code to your email.';}
+  else{title.textContent='Welcome back';sub.textContent='Sign in to your photographer account.';}
   document.getElementById('authStatus').textContent='';
+}
+function doSendResetCode(){
+  const email=document.getElementById('fpEmail').value.trim();
+  if(!email){setAuthStatus('Please enter your email.','err');return;}
+  const btn=document.getElementById('fpSendBtn');btn.disabled=true;
+  setAuthStatus('Sending code…');
+  const cu=new AmazonCognitoIdentity.CognitoUser({Username:email,Pool:userPool});
+  window._fpUser=cu;
+  cu.forgotPassword({
+    onSuccess(){btn.disabled=false;setAuthStatus('Code sent!','ok');switchAuthTab('reset');},
+    onFailure(e){btn.disabled=false;setAuthStatus(e.message||'Failed to send code.','err');}
+  });
+}
+function doConfirmReset(){
+  const code=document.getElementById('fpCode').value.trim();
+  const newpass=document.getElementById('fpNewPass').value;
+  if(!code||!newpass){setAuthStatus('Please fill in all fields.','err');return;}
+  if(newpass.length<8){setAuthStatus('Password must be at least 8 characters.','err');return;}
+  const btn=document.getElementById('fpConfirmBtn');btn.disabled=true;
+  setAuthStatus('Resetting password…');
+  if(!window._fpUser){setAuthStatus('Session expired. Please start over.','err');btn.disabled=false;return;}
+  window._fpUser.confirmPassword(code,newpass,{
+    onSuccess(){btn.disabled=false;setAuthStatus('Password reset! You can now sign in.','ok');switchAuthTab('signin');},
+    onFailure(e){btn.disabled=false;setAuthStatus(e.message||'Reset failed.','err');}
+  });
 }
 function setAuthStatus(m,t=''){const el=document.getElementById('authStatus');el.textContent=m;el.className='auth-status '+t;}
 function doSignIn(){
@@ -734,6 +780,7 @@ function doConfirm(){
 function onAuthSuccess(cu,session){
   currentIdToken=session.getIdToken().getJwtToken();currentUser=cu;
   const p=session.getIdToken().payload;const name=p.name||p.email||'Photographer';
+  currentSub=p.sub||'';
   document.getElementById('userName').textContent=name;
   document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
   document.getElementById('authScreen').classList.add('hidden');
@@ -852,7 +899,7 @@ function E(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 
 function doSignOut(){
   if(currentUser)currentUser.signOut();
-  currentIdToken=null;currentUser=null;
+  currentIdToken=null;currentUser=null;currentSub=null;
   document.getElementById('authScreen').classList.remove('hidden');
   document.getElementById('siEmail').value='';document.getElementById('siPass').value='';
   setAuthStatus('');
@@ -893,9 +940,14 @@ function toggleEdition(){
 
 /* === File select === */
 function onFileSelect(input){
-  const file=input.files[0];if(!file)return;
-  selectedFile=file;
-  document.getElementById('fileSelectedName').textContent=file.name+' ('+(file.size/1024/1024).toFixed(2)+' MB)';
+  const files=Array.from(input.files||[]).filter(f=>f.size<=52428800); // 50 MB limit
+  if(!files.length)return;
+  selectedFiles=files;
+  selectedFile=files[0]; // keep legacy reference for compatibility
+  const label=files.length===1
+    ? files[0].name+' ('+(files[0].size/1024/1024).toFixed(2)+' MB)'
+    : files.length+' photos selected ('+(files.reduce((s,f)=>s+f.size,0)/1024/1024).toFixed(1)+' MB total)';
+  document.getElementById('fileSelectedName').textContent=label;
   document.getElementById('fileSelected').classList.add('visible');
   document.getElementById('processBtn').disabled=false;
 }
@@ -905,7 +957,8 @@ function onFileSelect(input){
   zone.addEventListener('dragleave',()=>zone.classList.remove('over'));
   zone.addEventListener('drop',e=>{
     e.preventDefault();zone.classList.remove('over');
-    const file=e.dataTransfer.files[0];if(file){selectedFile=file;onFileSelect({files:[file]});}
+    const files=Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/'));
+    if(files.length){onFileSelect({files});}
   });
 })();
 
@@ -917,39 +970,54 @@ function statusStep(state,msg){
     <span>${msg}</span></div>`;
 }
 async function handleUpload(){
-  if(!selectedFile){showToast('Select a file first.','err');return;}
+  const files=selectedFiles.length?selectedFiles:(selectedFile?[selectedFile]:[]);
+  if(!files.length){showToast('Select a file first.','err');return;}
   if(!currentIdToken){showToast('Please sign in first.','err');return;}
   const btn=document.getElementById('processBtn');btn.disabled=true;
-  try{
-    statusStep('active','Requesting upload URL…');
-    const urlR=await fetch(CONFIG.ApiBase+'/get-upload-url',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({fileName:selectedFile.name,fileType:selectedFile.type})
-    });
-    if(!urlR.ok)throw new Error('Could not get upload URL (HTTP '+urlR.status+')');
-    const{uploadUrl,s3Key}=await urlR.json();
-    statusStep('done','Upload URL received');
-    statusStep('active','Uploading to S3…');
-    const putR=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':selectedFile.type},body:selectedFile});
-    if(!putR.ok)throw new Error('S3 upload failed (HTTP '+putR.status+')');
-    statusStep('done','File uploaded to S3');
-    statusStep('active','Starting processing pipeline…');
-    const procR=await fetch(CONFIG.ApiBase+'/process',{
-      method:'POST',headers:{'Content-Type':'application/json','Authorization':currentIdToken},
-      body:JSON.stringify({s3Key,effects:[...selectedEffects],limitedEdition:isLimitedEdition})
-    });
-    if(!procR.ok){const t=await procR.text();throw new Error('Pipeline failed: '+t);}
-    statusStep('done','Pipeline running — photo will appear in your library shortly');
-    showToast('Processing started!','ok');
-    setTimeout(loadGallery,3000);setTimeout(loadStats,3000);
-  }catch(err){
-    const el=document.getElementById('uploadStatus');el.classList.add('visible');
-    el.innerHTML=`<div class="status-step" style="color:var(--red)"><i class="ti ti-alert-circle"></i> Error: ${err.message}</div>`;
-    showToast('Upload failed','err');btn.disabled=false;
+  const el=document.getElementById('uploadStatus');el.classList.add('visible');
+  let succeeded=0,failed=0;
+  for(let i=0;i<files.length;i++){
+    const file=files[i];
+    const prefix=files.length>1?`[${i+1}/${files.length}] ${file.name} — `:'';
+    try{
+      el.innerHTML=`<div class="status-step active"><i class="ti ti-loader ti-spin"></i><span>${prefix}Requesting upload URL…</span></div>`;
+      const urlR=await fetch(CONFIG.ApiBase+'/get-upload-url',{
+        method:'POST',headers:{'Content-Type':'application/json','Authorization':currentIdToken},
+        body:JSON.stringify({fileName:file.name,fileType:file.type})
+      });
+      if(!urlR.ok)throw new Error('Could not get upload URL (HTTP '+urlR.status+')');
+      const{uploadUrl,s3Key}=await urlR.json();
+      el.innerHTML=`<div class="status-step active"><i class="ti ti-loader ti-spin"></i><span>${prefix}Uploading to S3…</span></div>`;
+      const putR=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':file.type},body:file});
+      if(!putR.ok)throw new Error('S3 upload failed (HTTP '+putR.status+')');
+      el.innerHTML=`<div class="status-step active"><i class="ti ti-loader ti-spin"></i><span>${prefix}Starting processing pipeline…</span></div>`;
+      const procR=await fetch(CONFIG.ApiBase+'/process',{
+        method:'POST',headers:{'Content-Type':'application/json','Authorization':currentIdToken},
+        body:JSON.stringify({s3Key,effects:[...selectedEffects],limitedEdition:isLimitedEdition})
+      });
+      if(!procR.ok){const t=await procR.text();throw new Error('Pipeline failed: '+t);}
+      succeeded++;
+      el.innerHTML=`<div class="status-step done"><i class="ti ti-circle-check"></i><span>${prefix}Pipeline running…</span></div>`;
+    }catch(err){
+      failed++;
+      el.innerHTML=`<div class="status-step" style="color:var(--red)"><i class="ti ti-alert-circle"></i><span>${prefix}${err.message}</span></div>`;
+    }
   }
+  // Final summary
+  if(files.length>1){
+    const color=failed?'var(--red)':'var(--green)';
+    const icon=failed?'ti-alert-circle':'ti-circle-check';
+    el.innerHTML=`<div class="status-step done" style="color:${color}"><i class="ti ${icon}"></i><span>${succeeded} uploaded${failed?', '+failed+' failed':''} — photos will appear in your library shortly</span></div>`;
+  } else if(succeeded){
+    el.innerHTML=`<div class="status-step done"><i class="ti ti-circle-check"></i><span>Pipeline running — photo will appear in your library shortly</span></div>`;
+  }
+  if(succeeded){showToast(files.length>1?`${succeeded} photo${succeeded>1?'s':''} processing!`:'Processing started!','ok');}
+  if(succeeded){setTimeout(loadGallery,3000);setTimeout(loadStats,3000);}
+  btn.disabled=false;
 }
 function resetUpload(){
   selectedFile=null;
+  selectedFiles=[];
   document.getElementById('fileInput').value='';
   document.getElementById('fileSelected').classList.remove('visible');
   document.getElementById('uploadStatus').classList.remove('visible');
@@ -962,9 +1030,10 @@ async function loadGallery(){
   const grid=document.getElementById('galleryGrid');
   grid.innerHTML='<div class="gallery-card sk-card"><div class="gallery-thumb sk-block"></div><div class="gallery-info"><div class="sk-line" style="width:70%;height:10px;margin-bottom:8px;border-radius:4px;"></div><div class="sk-line" style="width:45%;height:9px;border-radius:4px;"></div></div></div>'.repeat(4);
   try{
-    const r=await fetch(CONFIG.ApiBase+'/list-images',{headers:{'Authorization':currentIdToken}});
+    const r=await fetch(CONFIG.ApiBase+'/list-images'+(currentSub?'?photographerId='+encodeURIComponent(currentSub):''),{headers:{'Authorization':currentIdToken}});
     if(!r.ok)throw new Error('HTTP '+r.status);
-    const photos=await r.json();
+    const data=await r.json();
+    const photos=data.photos||data||[];
     window._galleryPhotos=photos;
     document.getElementById('libBadge').textContent=photos.length;
     if(!photos.length){grid.innerHTML='<div class="gallery-empty"><i class="ti ti-photo-off"></i> No photos yet — upload one above</div>';return;}
@@ -987,8 +1056,9 @@ async function loadGallery(){
 async function loadStats(){
   if(!currentIdToken)return;
   try{
-    const r=await fetch(CONFIG.ApiBase+'/list-images',{headers:{'Authorization':currentIdToken}});
-    if(!r.ok)return;const photos=await r.json();
+    const r=await fetch(CONFIG.ApiBase+'/list-images'+(currentSub?'?photographerId='+encodeURIComponent(currentSub):''),{headers:{'Authorization':currentIdToken}});
+    if(!r.ok)return;const data=await r.json();
+    const photos=data.photos||data||[];
     document.getElementById('statPhotos').textContent=photos.length;
     document.getElementById('statLikes').textContent=photos.reduce((s,p)=>s+(p.likes||0),0);
     document.getElementById('libBadge').textContent=photos.length;

@@ -13,16 +13,14 @@ def handler(event, context):
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
-    # Load secrets from SSM
     ssm = boto3.client("ssm")
-    stripe.api_key   = ssm.get_parameter(
+    stripe.api_key = ssm.get_parameter(
         Name=os.environ["STRIPE_SECRET_KEY_PARAM"], WithDecryption=True
     )["Parameter"]["Value"]
-    webhook_secret   = ssm.get_parameter(
+    webhook_secret = ssm.get_parameter(
         Name=os.environ["STRIPE_WEBHOOK_SECRET_PARAM"], WithDecryption=True
     )["Parameter"]["Value"]
 
-    # Verify Stripe signature
     sig_header = (event.get("headers") or {}).get("Stripe-Signature", "")
     payload    = event.get("body", "")
 
@@ -33,36 +31,69 @@ def handler(event, context):
     except Exception as e:
         return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": str(e)})}
 
-    # Handle checkout.session.completed
     if stripe_event["type"] == "checkout.session.completed":
-        session = stripe_event["data"]["object"]
-        meta    = session.get("metadata") or {}
+        session        = stripe_event["data"]["object"]
+        meta           = session.get("metadata") or {}
 
         photo_id       = meta.get("photoId", "")
+        photo_ids_raw  = meta.get("photoIds", "")
         tier           = meta.get("tier", "")
         file_name      = meta.get("fileName", "")
         customer_email = session.get("customer_email", "")
         amount_total   = session.get("amount_total", 0)
         session_id     = session.get("id", "")
+        user_id        = meta.get("userId", "")
+        payment_intent = session.get("payment_intent", "")
+        is_multi       = meta.get("multi", "0") == "1"
+        created_at     = str(session.get("created", ""))
 
-        if photo_id and tier and session_id:
-            table = boto3.resource("dynamodb").Table(os.environ["ORDERS_TABLE"])
+        table = boto3.resource("dynamodb").Table(os.environ["ORDERS_TABLE"])
+
+        if is_multi and photo_ids_raw:
+            for idx, pair in enumerate(photo_ids_raw.split(",")):
+                pair = pair.strip()
+                if ":" not in pair:
+                    continue
+                pid, ptier = pair.rsplit(":", 1)
+                pk = f"{session_id}#{idx}"
+                try:
+                    table.put_item(
+                        Item={
+                            "sessionId":       pk,
+                            "photoId":         pid.strip(),
+                            "tier":            ptier.strip(),
+                            "customerEmail":   customer_email,
+                            "userId":          user_id,
+                            "amountTotal":     amount_total,
+                            "paymentIntentId": payment_intent,
+                            "status":          "paid",
+                            "createdAt":       created_at,
+                            "source":          "webhook",
+                        },
+                        ConditionExpression="attribute_not_exists(sessionId)",
+                    )
+                except Exception:
+                    pass
+
+        elif photo_id and tier and session_id:
             try:
                 table.put_item(
                     Item={
-                        "sessionId":     session_id,
-                        "photoId":       photo_id,
-                        "tier":          tier,
-                        "fileName":      file_name,
-                        "customerEmail": customer_email,
-                        "amountTotal":   amount_total,
-                        "status":        "paid",
-                        "createdAt":     str(session.get("created", "")),
-                        "source":        "webhook",
+                        "sessionId":       session_id,
+                        "photoId":         photo_id,
+                        "tier":            tier,
+                        "fileName":        file_name,
+                        "customerEmail":   customer_email,
+                        "userId":          user_id,
+                        "amountTotal":     amount_total,
+                        "paymentIntentId": payment_intent,
+                        "status":          "paid",
+                        "createdAt":       created_at,
+                        "source":          "webhook",
                     },
                     ConditionExpression="attribute_not_exists(sessionId)",
                 )
             except Exception:
-                pass  # Idempotent — already recorded is fine
+                pass
 
     return {"statusCode": 200, "headers": CORS, "body": json.dumps({"received": True})}

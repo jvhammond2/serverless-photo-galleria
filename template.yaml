@@ -109,6 +109,10 @@ Resources:
       UserPoolName: galleria-user-pool
       UsernameAttributes: [email]
       AutoVerifiedAttributes: [email]
+      EmailConfiguration:
+        EmailSendingAccount: DEVELOPER
+        SourceArn: !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/proactivetechsolutions.net
+        From: noreply@proactivetechsolutions.net
       LambdaConfig:
         PreSignUp: !GetAtt CognitoAutoConfirmFunction.Arn
 
@@ -139,6 +143,10 @@ Resources:
       UserPoolName: customer-user-pool
       UsernameAttributes: [email]
       AutoVerifiedAttributes: [email]
+      EmailConfiguration:
+        EmailSendingAccount: DEVELOPER
+        SourceArn: !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/proactivetechsolutions.net
+        From: noreply@proactivetechsolutions.net
       LambdaConfig:
         PreSignUp: !GetAtt CognitoAutoConfirmFunction.Arn
 

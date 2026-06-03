@@ -238,6 +238,17 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
   </div>
 </div>
 
+<!-- ── Info modal ──────────────────────────────────────────────────────── -->
+<div class="mb" id="info-modal" onclick="if(event.target===this)closeInfo()" style="z-index:600">
+  <div class="mo" style="max-width:560px;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div class="mtitle" id="info-title" style="margin-bottom:0"></div>
+      <button class="xbtn" onclick="closeInfo()"><i class="ti ti-x"></i></button>
+    </div>
+    <div id="info-body" style="font-size:14px;line-height:1.7;color:var(--ink-2)"></div>
+  </div>
+</div>
+
 <!-- ── Auth modal ──────────────────────────────────────────────────────── -->
 <div class="mb" id="mb" onclick="mbClick(event)">
   <div class="mo">
@@ -248,10 +259,28 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
       <button class="mtab active" id="t1" onclick="switchTab('in')">Sign In</button>
       <button class="mtab" id="t2" onclick="switchTab('reg')">Create Account</button>
     </div>
-    <input class="mfield" type="text" id="an" placeholder="Full name" autocomplete="name" style="display:none">
-    <input class="mfield" type="email" id="ae" placeholder="Email address" autocomplete="email">
-    <input class="mfield" type="password" id="ap" placeholder="Password" autocomplete="current-password">
-    <button class="msub-btn" id="as" onclick="doAuth()">Sign In</button>
+    <!-- Sign in / Register fields -->
+    <div id="auth-fields">
+      <input class="mfield" type="text" id="an" placeholder="Full name" autocomplete="name" style="display:none">
+      <input class="mfield" type="email" id="ae" placeholder="Email address" autocomplete="email">
+      <input class="mfield" type="password" id="ap" placeholder="Password" autocomplete="current-password">
+      <div style="text-align:right;margin-top:-6px;margin-bottom:14px">
+        <button onclick="switchTab('forgot')" style="background:none;border:none;font-size:12.5px;color:var(--ink-2);cursor:pointer;padding:0;font-family:inherit" id="fp-link">Forgot password?</button>
+      </div>
+      <button class="msub-btn" id="as" onclick="doAuth()">Sign In</button>
+    </div>
+    <!-- Forgot password fields -->
+    <div id="forgot-fields" style="display:none">
+      <input class="mfield" type="email" id="fp-email" placeholder="Your email address" autocomplete="email">
+      <button class="msub-btn" id="fp-send" onclick="sendResetCode()">Send Reset Code</button>
+    </div>
+    <!-- Reset code + new password fields -->
+    <div id="reset-fields" style="display:none">
+      <p style="font-size:13px;color:var(--ink-2);margin-bottom:16px">Check your email for a verification code.</p>
+      <input class="mfield" type="text" id="fp-code" placeholder="Verification code" autocomplete="one-time-code">
+      <input class="mfield" type="password" id="fp-newpass" placeholder="New password" autocomplete="new-password">
+      <button class="msub-btn" id="fp-confirm" onclick="confirmReset()">Reset Password</button>
+    </div>
     <div class="mstat" id="ast"></div>
   </div>
 </div>
@@ -263,7 +292,12 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
   <div class="lbfoot">
     <div class="lbtitle" id="lbtitle"></div>
     <div class="lbdesc" id="lbdesc" style="display:none"></div>
-    <button class="lbbtn" onclick="lbLike()"><i class="ti ti-heart"></i> Like</button>
+    <div id="lb-photographer" style="display:none;width:100%;text-align:center;margin-bottom:4px">
+      <button class="lbbtn" id="lb-profile-btn" onclick="lbViewProfile()" style="background:rgba(255,255,255,.08);margin:0 auto">
+        <i class="ti ti-user"></i> <span id="lb-photographer-name">View Photographer</span>
+      </button>
+    </div>
+    <button class="lbbtn" id="lb-like-btn" onclick="lbLike()"><i class="ti ti-heart"></i> Like</button>
     <button class="lbbtn" onclick="lbCart()"><i class="ti ti-shopping-bag"></i> Add to Cart</button>
     <button class="lbbtn p" onclick="lbBuy()"><i class="ti ti-credit-card"></i> Purchase Print</button>
   </div>
@@ -349,7 +383,6 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
     <div class="hero-sub">Museum-quality prints from independent photographers, shipped worldwide.</div>
     <div class="hero-actions">
       <button class="hbtn p" onclick="document.getElementById('gal').scrollIntoView({behavior:'smooth'})"><i class="ti ti-photo"></i> Browse Gallery</button>
-      <button class="hbtn g" onclick="openMod()"><i class="ti ti-user"></i> Sign In</button>
     </div>
   </div>
 </div>
@@ -386,19 +419,19 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 <footer>
   <div class="fi">
     <div><div class="fb">Galleria</div><div class="fd">Fine art photography prints from independent photographers. Museum-quality giclée, canvas, and metal prints shipped worldwide.</div></div>
-    <div><div class="fh">Shop</div><a class="fl">New Arrivals</a><a class="fl">Limited Editions</a><a class="fl">Collections</a><a class="fl">Gift Cards</a></div>
-    <div><div class="fh">Support</div><a class="fl">Print Sizes Guide</a><a class="fl">Shipping &amp; Returns</a><a class="fl">Track Your Order</a></div>
-    <div><div class="fh">Company</div><a class="fl">About Galleria</a><a class="fl">For Photographers</a><a class="fl">Press</a></div>
+    <div><div class="fh">Shop</div><a class="fl" onclick="document.getElementById('gal').scrollIntoView({behavior:'smooth'})" style="cursor:pointer">New Arrivals</a><a class="fl" onclick="document.getElementById('si').value='limited';onSearch('limited');document.getElementById('gal').scrollIntoView({behavior:'smooth'})" style="cursor:pointer">Limited Editions</a><a class="fl" onclick="document.getElementById('gal').scrollIntoView({behavior:'smooth'})" style="cursor:pointer">Collections</a><a class="fl" onclick="openMod()" style="cursor:pointer">Gift Cards</a></div>
+    <div><div class="fh">Support</div><a class="fl" onclick="openInfo('sizes')" style="cursor:pointer">Print Sizes Guide</a><a class="fl" onclick="openInfo('shipping')" style="cursor:pointer">Shipping &amp; Returns</a><a class="fl" onclick="openInfo('track')" style="cursor:pointer">Track Your Order</a></div>
+    <div><div class="fh">Company</div><a class="fl" onclick="openInfo('about')" style="cursor:pointer">About Galleria</a><a class="fl" onclick="openInfo('photographers')" style="cursor:pointer">For Photographers</a><a class="fl" onclick="openInfo('press')" style="cursor:pointer">Press</a></div>
   </div>
-  <div class="fbot"><span>© 2026 Galleria. All rights reserved.</span><span>Privacy · Terms · Cookie Policy</span></div>
+  <div class="fbot"><span>© 2026 Galleria. All rights reserved.</span><span><a class="fl" onclick="openInfo('privacy')" style="cursor:pointer;color:inherit">Privacy</a> · <a class="fl" onclick="openInfo('terms')" style="cursor:pointer;color:inherit">Terms</a> · <a class="fl" onclick="openInfo('cookies')" style="cursor:pointer;color:inherit">Cookie Policy</a></span></div>
 </footer>
 
-<script src="amazon-cognito-identity.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
 <script>
 const C = {
-  UserPoolId: 'us-east-1_8ksHpAugJ',
-  ClientId:   '1691mfu20ajnsib8mja446cvev',
-  ApiBase:    'https://lwdhx8hyzi.execute-api.us-east-1.amazonaws.com/Prod',
+  UserPoolId: 'us-east-1_WIZjOvOEF',
+  ClientId:   '41hbp9182aavl3a7dhg49bs952',
+  ApiBase:    'https://e7rst7vbhc.execute-api.us-east-1.amazonaws.com/Prod',
 };
 
 const TIERS = [
@@ -410,8 +443,20 @@ const TIERS = [
 let UP=null, CU=null, tok='', tab='in', photos=[], cart=[], lbPhoto=null, pmPhoto=null, selTier='medium', sd=null;
 
 window.onload = () => {
-  if (typeof AmazonCognitoIdentity !== 'undefined')
+  if (typeof AmazonCognitoIdentity !== 'undefined') {
     UP = new AmazonCognitoIdentity.CognitoUserPool({UserPoolId:C.UserPoolId,ClientId:C.ClientId});
+    // Restore session from Cognito local storage if user was previously signed in
+    const cu = UP.getCurrentUser();
+    if (cu) {
+      cu.getSession((err, session) => {
+        if (!err && session && session.isValid()) {
+          tok = session.getIdToken().getJwtToken();
+          CU = cu;
+          document.getElementById('anb').textContent = 'Sign Out';
+        }
+      });
+    }
+  }
   loadGallery();
   handleUrlParams();
   loadProfile();
@@ -475,7 +520,7 @@ function dismissSuccess() {
 // ── Gallery ───────────────────────────────────────────────────────────────
 let _nextCursor = null, _lastQuery = '';
 
-async function loadGallery(q, cursor) {
+async function loadGallery(q, photographerId, cursor) {
   const g = document.getElementById('grid');
   _lastQuery = q != null ? q : _lastQuery;
   if (!cursor) {
@@ -489,6 +534,7 @@ async function loadGallery(q, cursor) {
     let url = C.ApiBase + '/list-images';
     const params = new URLSearchParams();
     if (_lastQuery) params.set('q', _lastQuery);
+    if (photographerId) params.set('photographerId', photographerId);
     if (cursor) params.set('cursor', cursor);
     const qs = params.toString(); if (qs) url += '?' + qs;
     const r = await fetch(url);
@@ -527,7 +573,7 @@ function renderGallery(items, append) {
     const wrap = document.createElement('div');
     wrap.id = 'load-more-wrap';
     wrap.style.cssText = 'grid-column:1/-1;text-align:center;padding:24px 0;';
-    wrap.innerHTML = '<button onclick="loadGallery(null,\''+_nextCursor+'\')" style="padding:10px 28px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);font-family:\'Inter\',sans-serif;font-size:14px;font-weight:500;cursor:pointer;color:var(--ink);transition:all .13s;" onmouseover="this.style.background=\'rgba(0,0,0,.04)\'" onmouseout="this.style.background=\'var(--surface)\'">Load More</button>';
+    wrap.innerHTML = '<button onclick="loadGallery(null,null,\''+_nextCursor+'\')" style="padding:10px 28px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);font-family:\'Inter\',sans-serif;font-size:14px;font-weight:500;cursor:pointer;color:var(--ink);transition:all .13s;" onmouseover="this.style.background=\'rgba(0,0,0,.04)\'" onmouseout="this.style.background=\'var(--surface)\'">Load More</button>';
     g.appendChild(wrap);
   }
 }
@@ -632,13 +678,52 @@ function openLB(p) {
   const desc = p.aiDescription || '';
   descEl.textContent = desc;
   descEl.style.display = desc ? '' : 'none';
+  // Photographer profile button
+  const pgEl = document.getElementById('lb-photographer');
+  const pgName = p.photographerName || p.photographerDisplayName || '';
+  if (p.photographerId || pgName) {
+    document.getElementById('lb-photographer-name').textContent = pgName ? pgName + "'s Profile" : 'View Photographer';
+    pgEl.style.display = '';
+  } else {
+    pgEl.style.display = 'none';
+  }
+  // Like button state
+  const likeBtn = document.getElementById('lb-like-btn');
+  const cardBtn = document.getElementById('lk-' + p.photoId);
+  if (cardBtn && cardBtn.classList.contains('liked')) {
+    likeBtn.innerHTML = '<i class="ti ti-heart-filled" style="color:#e55"></i> Liked';
+  } else {
+    likeBtn.innerHTML = '<i class="ti ti-heart"></i> Like';
+  }
   document.getElementById('lb').classList.add('open');
 }
 function closeLB() { document.getElementById('lb').classList.remove('open'); lbPhoto = null; }
 document.getElementById('lb').addEventListener('click', e => { if (e.target === e.currentTarget) closeLB(); });
-function lbLike() { if (lbPhoto) { const b = document.getElementById('lk-'+lbPhoto.photoId); if (b) doLike(lbPhoto.photoId, b); } }
+function lbLike() {
+  if (!lbPhoto) return;
+  const b = document.getElementById('lk-'+lbPhoto.photoId);
+  if (b) {
+    doLike(lbPhoto.photoId, b);
+    // Update lightbox like button to match
+    setTimeout(() => {
+      const likeBtn = document.getElementById('lb-like-btn');
+      if (b.classList.contains('liked')) likeBtn.innerHTML = '<i class="ti ti-heart-filled" style="color:#e55"></i> Liked';
+      else likeBtn.innerHTML = '<i class="ti ti-heart"></i> Like';
+    }, 300);
+  }
+}
 function lbCart() { if (lbPhoto) { addCart(lbPhoto.photoId); } }
 function lbBuy() { if (lbPhoto) { closeLB(); openPurchase(lbPhoto); } }
+function lbViewProfile() {
+  if (!lbPhoto) return;
+  closeLB();
+  // Open the photographer profile modal if it exists, otherwise show their photos filtered
+  if (lbPhoto.photographerId) {
+    loadGallery('', lbPhoto.photographerId);
+    document.getElementById('gal').scrollIntoView({behavior:'smooth'});
+    toast((lbPhoto.photographerName || 'Photographer') + "'s photos", 'ok');
+  }
+}
 
 // ── Purchase modal ────────────────────────────────────────────────────────
 function openPurchase(p) {
@@ -691,6 +776,138 @@ async function doPurchase() {
 // ── Auth ──────────────────────────────────────────────────────────────────
 function openMod() { document.getElementById('mb').classList.add('open'); }
 function closeMod() { document.getElementById('mb').classList.remove('open'); setSt('',''); }
+
+// ── Info modal ────────────────────────────────────────────────────────────
+const INFO_CONTENT = {
+  sizes: {
+    title: 'Print Sizes Guide',
+    body: `
+      <p style="margin-bottom:16px">Every Galleria print is produced using archival-grade giclée inkjet technology on museum-quality substrates. We offer three tiers:</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px">
+        <tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:8px 0;color:var(--ink)">Tier</th><th style="text-align:left;padding:8px 0;color:var(--ink)">Resolution</th><th style="text-align:left;padding:8px 0;color:var(--ink)">Best For</th><th style="text-align:right;padding:8px 0;color:var(--ink)">Price</th></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:10px 0"><strong>Small</strong></td><td style="padding:10px 0">72 DPI · up to 1,000 px</td><td style="padding:10px 0">Screens, social, digital frames</td><td style="padding:10px 0;text-align:right">$9.99</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:10px 0"><strong>Medium</strong></td><td style="padding:10px 0">150 DPI · up to 3,000 px</td><td style="padding:10px 0">Home printing up to 20×13"</td><td style="padding:10px 0;text-align:right">$29.99</td></tr>
+        <tr><td style="padding:10px 0"><strong>Large</strong></td><td style="padding:10px 0">Full original resolution</td><td style="padding:10px 0">Gallery prints, commercial use</td><td style="padding:10px 0;text-align:right">$49.99</td></tr>
+      </table>
+      <p style="margin-bottom:10px"><strong>Recommended paper stocks:</strong></p>
+      <ul style="padding-left:20px;margin-bottom:16px">
+        <li style="margin-bottom:6px"><strong>Hahnemühle Photo Rag 308gsm</strong> — warm matte finish, exceptional shadow detail</li>
+        <li style="margin-bottom:6px"><strong>Canson Baryta 310gsm</strong> — gloss finish, fibre-based, true darkroom look</li>
+        <li style="margin-bottom:6px"><strong>Innova Aquajet 280gsm</strong> — satin finish, excellent colour gamut</li>
+      </ul>
+      <p>All digital files are delivered as high-resolution JPEG or TIFF. Colour profiles are embedded (Adobe RGB 1998). Downloads are available for 90 days after purchase.</p>`
+  },
+  shipping: {
+    title: 'Shipping & Returns',
+    body: `
+      <p style="margin-bottom:16px">Galleria sells digital file licences — there is nothing to ship. Your purchased files are available for instant download immediately after payment is confirmed.</p>
+      <p style="margin-bottom:16px"><strong>Download access:</strong> Files are available via a secure link for 90 days after purchase. You can download each file up to 5 times within that window.</p>
+      <p style="margin-bottom:16px"><strong>Refund policy:</strong> Because our products are digital files, all sales are final once the download link has been accessed. If you experience a technical issue preventing download, contact us within 7 days and we will resolve it or issue a full refund.</p>
+      <p style="margin-bottom:16px"><strong>Licence terms:</strong> Your purchase grants a perpetual, non-exclusive licence to use the image for the purpose described in your chosen tier (personal/home use for Small and Medium; commercial use included with Large). Redistribution or resale of the image files themselves is not permitted.</p>
+      <p>For support, email <strong>support@galleria.art</strong> — we respond within one business day.</p>`
+  },
+  track: {
+    title: 'Track Your Order',
+    body: `
+      <p style="margin-bottom:16px">Since Galleria delivers digital files, there is nothing to track in transit — your files are ready the moment payment clears.</p>
+      <p style="margin-bottom:16px">To access your purchases:</p>
+      <ol style="padding-left:20px;margin-bottom:16px">
+        <li style="margin-bottom:8px">Sign in to your Galleria account using the button in the top right</li>
+        <li style="margin-bottom:8px">After a successful checkout, you will be returned to the gallery with a download prompt automatically</li>
+        <li style="margin-bottom:8px">You will also receive a confirmation email at your registered address with a direct download link</li>
+      </ol>
+      <p style="margin-bottom:16px">Download links remain active for <strong>90 days</strong> from the date of purchase. If your link has expired or you did not receive a confirmation email, contact <strong>support@galleria.art</strong> with your order reference and we will reissue access.</p>`
+  },
+  about: {
+    title: 'About Galleria',
+    body: `
+      <p style="margin-bottom:16px">Galleria is a curated marketplace connecting independent photographers with collectors, designers, and print enthusiasts worldwide. We believe exceptional photography deserves to be seen — not buried in social media feeds.</p>
+      <p style="margin-bottom:16px">Founded in 2026, Galleria was built on a simple principle: photographers should keep the majority of what their work earns, and buyers should have access to the highest-quality files the photographer can produce.</p>
+      <p style="margin-bottom:16px"><strong>What makes Galleria different:</strong></p>
+      <ul style="padding-left:20px;margin-bottom:16px">
+        <li style="margin-bottom:8px">Every image is reviewed by our editorial team before it reaches the marketplace</li>
+        <li style="margin-bottom:8px">Photographers set their own pricing and licence terms</li>
+        <li style="margin-bottom:8px">Files are delivered at true original resolution — no compression, no watermarks on purchased files</li>
+        <li style="margin-bottom:8px">Built on AWS with enterprise-grade security — your data and your purchases are protected</li>
+      </ul>
+      <p>Galleria is headquartered in New York and operates globally. For partnership enquiries, email <strong>hello@galleria.art</strong>.</p>`
+  },
+  photographers: {
+    title: 'For Photographers',
+    body: `
+      <p style="margin-bottom:16px">Join Galleria as a contributing photographer and turn your portfolio into a revenue stream. Our studio portal gives you everything you need to upload, process, and sell your work.</p>
+      <p style="margin-bottom:16px"><strong>What you get:</strong></p>
+      <ul style="padding-left:20px;margin-bottom:16px">
+        <li style="margin-bottom:8px">AI-powered processing pipeline — blur, crop, resize, watermark, colour grade and more, all applied server-side</li>
+        <li style="margin-bottom:8px">Automatic AI tagging via Amazon Rekognition so your photos are discoverable from day one</li>
+        <li style="margin-bottom:8px">Real-time earnings dashboard with per-photo revenue breakdown</li>
+        <li style="margin-bottom:8px">Your own public profile page visible to all Galleria customers</li>
+        <li style="margin-bottom:8px">GDPR-compliant data handling — full control over your data at all times</li>
+      </ul>
+      <p style="margin-bottom:16px"><strong>Revenue split:</strong> Photographers receive 70% of every sale. Payments are processed via Stripe and settled monthly.</p>
+      <p>Ready to start? <a onclick="closeInfo();window.open('https://dps7ixpjebpsu.cloudfront.net','_blank')" style="color:var(--ink);font-weight:600;cursor:pointer;text-decoration:underline">Open the Studio Portal →</a></p>`
+  },
+  press: {
+    title: 'Press & Media',
+    body: `
+      <p style="margin-bottom:16px">Galleria is available for press coverage, editorial features, and partnership announcements. We welcome enquiries from photography publications, design media, and technology press.</p>
+      <p style="margin-bottom:16px"><strong>Press contact:</strong><br>press@galleria.art<br>Response time: 1–2 business days</p>
+      <p style="margin-bottom:16px"><strong>Key facts:</strong></p>
+      <ul style="padding-left:20px;margin-bottom:16px">
+        <li style="margin-bottom:8px">Launched: 2026</li>
+        <li style="margin-bottom:8px">Infrastructure: AWS serverless — Lambda, DynamoDB, CloudFront, Step Functions</li>
+        <li style="margin-bottom:8px">Coverage: Global — serving buyers and photographers worldwide</li>
+        <li style="margin-bottom:8px">Payments: Stripe — supports all major cards and regional payment methods</li>
+        <li style="margin-bottom:8px">Compliance: GDPR-compliant (EU Art. 7, 17, 20, 30)</li>
+      </ul>
+      <p>High-resolution brand assets and founder photography available on request.</p>`
+  },
+  privacy: {
+    title: 'Privacy Policy',
+    body: `
+      <p style="margin-bottom:16px"><em>Effective date: 1 January 2026</em></p>
+      <p style="margin-bottom:16px">Galleria ("we", "us") is committed to protecting your personal data in accordance with the EU General Data Protection Regulation (GDPR) and applicable privacy law.</p>
+      <p style="margin-bottom:16px"><strong>Data we collect:</strong> name, email address, purchase history, and browsing behaviour on the platform. We do not store payment card details — all payment processing is handled by Stripe.</p>
+      <p style="margin-bottom:16px"><strong>How we use it:</strong> to process your orders, send order confirmations, improve the platform, and comply with legal obligations. We do not sell your data to third parties.</p>
+      <p style="margin-bottom:16px"><strong>Your rights (GDPR):</strong> You have the right to access your data, correct inaccuracies, request erasure, and export your data in a portable format. Exercise these rights via your account settings or by emailing <strong>privacy@galleria.art</strong>.</p>
+      <p style="margin-bottom:16px"><strong>Data retention:</strong> Order records are retained for 7 years for tax and legal compliance. Account data is deleted within 30 days of an account deletion request.</p>
+      <p>For the full privacy policy, email <strong>privacy@galleria.art</strong>.</p>`
+  },
+  terms: {
+    title: 'Terms of Service',
+    body: `
+      <p style="margin-bottom:16px"><em>Effective date: 1 January 2026</em></p>
+      <p style="margin-bottom:16px">By using Galleria you agree to these terms. Please read them carefully.</p>
+      <p style="margin-bottom:16px"><strong>Licence:</strong> Purchasing a photo grants you a perpetual, non-exclusive licence to use the image file. Small and Medium tiers are for personal use only. Large tier includes commercial use. You may not resell, redistribute, or sublicence the files.</p>
+      <p style="margin-bottom:16px"><strong>Prohibited use:</strong> You may not use purchased images in NFTs, AI training datasets, or any application that presents the work as your own creation.</p>
+      <p style="margin-bottom:16px"><strong>Photographer obligations:</strong> Photographers warrant that they own the copyright to all images they upload and that images do not infringe any third-party rights.</p>
+      <p style="margin-bottom:16px"><strong>Limitation of liability:</strong> Galleria's liability to you is limited to the amount you paid for the relevant purchase. We are not liable for indirect or consequential loss.</p>
+      <p>Governing law: New York, USA. For queries email <strong>legal@galleria.art</strong>.</p>`
+  },
+  cookies: {
+    title: 'Cookie Policy',
+    body: `
+      <p style="margin-bottom:16px">Galleria uses a minimal set of cookies strictly necessary for the platform to function. We do not use advertising cookies or third-party tracking.</p>
+      <p style="margin-bottom:16px"><strong>Essential cookies:</strong></p>
+      <ul style="padding-left:20px;margin-bottom:16px">
+        <li style="margin-bottom:8px"><strong>Authentication (Cognito):</strong> Stores your encrypted session token so you remain signed in between page loads. Expires after 30 days of inactivity.</li>
+        <li style="margin-bottom:8px"><strong>Cart:</strong> Stores your shopping cart contents in browser memory for the current session. Cleared when you close the tab.</li>
+      </ul>
+      <p style="margin-bottom:16px"><strong>No advertising cookies.</strong> We do not use Google Analytics, Facebook Pixel, or any third-party tracking scripts. The only external resources loaded are the Tabler icon font and the Amazon Cognito authentication library.</p>
+      <p>To clear cookies, use your browser's settings. This will sign you out of your account. For questions email <strong>privacy@galleria.art</strong>.</p>`
+  }
+};
+
+function openInfo(key) {
+  const c = INFO_CONTENT[key];
+  if (!c) return;
+  document.getElementById('info-title').textContent = c.title;
+  document.getElementById('info-body').innerHTML = c.body;
+  document.getElementById('info-modal').classList.add('open');
+}
+function closeInfo() {
+  document.getElementById('info-modal').classList.remove('open');
+}
 function mbClick(e) { if (e.target===e.currentTarget) closeMod(); }
 function authNav() {
   if (tok) { if (CU) CU.signOut(); tok=''; CU=null; document.getElementById('anb').textContent='Sign In'; toast('Signed out'); }
@@ -698,12 +915,51 @@ function authNav() {
 }
 function switchTab(t) {
   tab = t;
+  const isForgot = t==='forgot' || t==='reset';
   document.getElementById('t1').classList.toggle('active', t==='in');
   document.getElementById('t2').classList.toggle('active', t==='reg');
-  document.getElementById('as').textContent = t==='in' ? 'Sign In' : 'Create Account';
-  document.getElementById('an').style.display = t==='reg' ? '' : 'none';
-  document.getElementById('ap').autocomplete = t==='reg' ? 'new-password' : 'current-password';
+  document.getElementById('auth-fields').style.display = isForgot ? 'none' : '';
+  document.getElementById('forgot-fields').style.display = t==='forgot' ? '' : 'none';
+  document.getElementById('reset-fields').style.display = t==='reset' ? '' : 'none';
+  document.getElementById('fp-link').style.display = t==='reg' ? 'none' : '';
+  if (!isForgot) {
+    document.getElementById('as').textContent = t==='in' ? 'Sign In' : 'Create Account';
+    document.getElementById('an').style.display = t==='reg' ? '' : 'none';
+    document.getElementById('ap').autocomplete = t==='reg' ? 'new-password' : 'current-password';
+  }
+  if (t==='forgot') {
+    document.querySelector('.mtitle').textContent = 'Reset Password';
+    document.querySelector('.msub').textContent = 'Enter your email and we\'ll send a reset code.';
+  } else {
+    document.querySelector('.mtitle').textContent = 'Welcome to Galleria';
+    document.querySelector('.msub').textContent = 'Sign in to like photos and purchase prints.';
+  }
   setSt('','');
+}
+function sendResetCode() {
+  if (!UP) { setSt('Auth library not loaded.','err'); return; }
+  const email = document.getElementById('fp-email').value.trim();
+  if (!email) { setSt('Please enter your email.','err'); return; }
+  const btn = document.getElementById('fp-send'); btn.disabled = true;
+  const cu = new AmazonCognitoIdentity.CognitoUser({Username:email, Pool:UP});
+  cu.forgotPassword({
+    onSuccess() { btn.disabled=false; switchTab('reset'); document.getElementById('fp-code').focus(); },
+    onFailure(e) { btn.disabled=false; setSt(e.message||'Failed to send code.','err'); }
+  });
+}
+function confirmReset() {
+  if (!UP) { setSt('Auth library not loaded.','err'); return; }
+  const email = document.getElementById('fp-email').value.trim();
+  const code = document.getElementById('fp-code').value.trim();
+  const newpass = document.getElementById('fp-newpass').value;
+  if (!code || !newpass) { setSt('Please fill in all fields.','err'); return; }
+  if (newpass.length < 8) { setSt('Password must be at least 8 characters.','err'); return; }
+  const btn = document.getElementById('fp-confirm'); btn.disabled = true;
+  const cu = new AmazonCognitoIdentity.CognitoUser({Username:email, Pool:UP});
+  cu.confirmPassword(code, newpass, {
+    onSuccess() { btn.disabled=false; setSt('Password reset! You can now sign in.','ok'); switchTab('in'); },
+    onFailure(e) { btn.disabled=false; setSt(e.message||'Reset failed.','err'); }
+  });
 }
 function setSt(m,c) { const el=document.getElementById('ast'); el.textContent=m; el.className='mstat'+(c?' '+c:''); }
 async function doAuth() {

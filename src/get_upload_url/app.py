@@ -29,7 +29,7 @@ def handler(event, context):
         return {
             'statusCode': 200,
             'headers': {
-                'Access-Control-Allow-Origin': 'https://d1akgo82m60buv.cloudfront.net',
+                'Access-Control-Allow-Origin': '*',
                 'Content-Type': 'application/json'
             },
             'body': json.dumps({'uploadUrl': presigned_url})
@@ -40,7 +40,7 @@ def handler(event, context):
         return {
             'statusCode': 500,
             'headers': {
-                'Access-Control-Allow-Origin': 'https://d1akgo82m60buv.cloudfront.net',
+                'Access-Control-Allow-Origin': '*',
                 'Content-Type': 'application/json'
             },
             'body': json.dumps({'error': str(e)})

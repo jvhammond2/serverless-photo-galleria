@@ -88,10 +88,11 @@
       "Parameters": {
         "FunctionName": "${TaggingFunctionArn}",
         "Payload": {
-          "photoId.$":      "$.photoId",
-          "originalKey.$":  "$.originalKey",
-          "thumbnailKey.$": "$.thumbnailKey",
-          "previewKey.$":   "$.previewKey"
+          "photoId.$":        "$.photoId",
+          "originalKey.$":    "$.originalKey",
+          "thumbnailKey.$":   "$.thumbnailKey",
+          "previewKey.$":     "$.previewKey",
+          "photographerId.$": "$.photographerId"
         }
       },
       "ResultPath": null,

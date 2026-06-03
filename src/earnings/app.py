@@ -126,7 +126,7 @@ def handler(event, context):
 
     # ── 2. Fetch completed orders containing any of the photographer's photos ─
     orders_table = dynamodb.Table(ORDERS_TABLE)
-    filter_expr  = boto3.dynamodb.conditions.Attr("status").eq("completed")
+    filter_expr  = boto3.dynamodb.conditions.Attr("status").eq("paid")
 
     all_orders = []
     resp = orders_table.scan(FilterExpression=filter_expr)

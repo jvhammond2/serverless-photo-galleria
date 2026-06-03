@@ -144,16 +144,17 @@ def effect_rotate(img: Image.Image) -> Image.Image:
     return img.rotate(270, expand=True)
 
 
-def effect_watermark(img: Image.Image) -> Image.Image:
+def effect_watermark(img: Image.Image, watermark_text: str = "") -> Image.Image:
     """Semi-transparent text watermark in the bottom-right corner.
     Uses Pillow 10's load_default(size=) so no font files are required.
     """
+    text = watermark_text or WATERMARK_TEXT
     w, h      = img.size
     font_size = max(24, min(w, h) // 22)
     font      = ImageFont.load_default(size=font_size)
 
     dummy = ImageDraw.Draw(Image.new("RGB", (1, 1)))
-    bbox  = dummy.textbbox((0, 0), WATERMARK_TEXT, font=font)
+    bbox  = dummy.textbbox((0, 0), text, font=font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
 
     base    = img.convert("RGBA")
@@ -164,8 +165,8 @@ def effect_watermark(img: Image.Image) -> Image.Image:
     x = w - tw - margin
     y = h - th - margin
 
-    draw.text((x + 2, y + 2), WATERMARK_TEXT, font=font, fill=(0, 0, 0, 140))
-    draw.text((x, y),         WATERMARK_TEXT, font=font, fill=(255, 255, 255, 210))
+    draw.text((x + 2, y + 2), text, font=font, fill=(0, 0, 0, 140))
+    draw.text((x, y),         text, font=font, fill=(255, 255, 255, 210))
 
     return Image.alpha_composite(base, overlay).convert("RGB")
 
@@ -201,12 +202,10 @@ def handler(event, context):
     photographer_id = event.get("photographerId")
     photo_id        = str(uuid.uuid4())
 
-    # Resolve the watermark text once per invocation so the effect function
-    # can close over it without needing a database call per pixel.
-    global WATERMARK_TEXT
-    WATERMARK_TEXT = _get_watermark_text(photographer_id)
+    # Resolve watermark text locally — avoids mutating module-level global
+    watermark_text = _get_watermark_text(photographer_id)
 
-    print(f"Processing photoId={photo_id}  key={s3_key}  actions={actions}  watermark='{WATERMARK_TEXT}'")
+    print(f"Processing photoId={photo_id}  key={s3_key}  actions={actions}  watermark='{watermark_text}'")
 
     # 1. Download original from S3
     obj        = s3.get_object(Bucket=s3_bucket, Key=s3_key)
@@ -230,7 +229,10 @@ def handler(event, context):
                 continue
             fn = EFFECTS.get(action)
             if fn:
-                img = fn(img)
+                if action == "watermark":
+                    img = fn(img, watermark_text)
+                else:
+                    img = fn(img)
                 print(f"  Applied: {action}")
             else:
                 print(f"  Skipped unknown action: {action}")

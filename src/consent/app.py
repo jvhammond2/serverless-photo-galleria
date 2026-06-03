@@ -157,7 +157,7 @@ def _handle_get(user_id: str) -> dict:
         }
 
     latest = items[0]
-    _write_audit(user_id, "consent:read", f"version={latest.get('consentVersion')}")
+    # No audit write on reads — only mutations (grant/revoke) are audited
 
     return {
         "statusCode": 200,

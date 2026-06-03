@@ -32,10 +32,12 @@ THUMBS_BUCKET    = os.environ["THUMBS_BUCKET"]       # thumbnails (kept for futu
 
 
 def handler(event, context):
-    photo_id      = event["photoId"]
-    original_key  = event["originalKey"]
-    thumbnail_key = event["thumbnailKey"]
-    preview_key   = event["previewKey"]
+    photo_id        = event["photoId"]
+    original_key    = event["originalKey"]
+    thumbnail_key   = event["thumbnailKey"]
+    preview_key     = event["previewKey"]
+    photographer_id = event.get("photographerId", "")
+    file_name       = original_key.rsplit("/", 1)[-1]
 
     # ── 1. Rekognition label detection ───────────────────────────────────────
     reko_resp = rekognition.detect_labels(
@@ -50,15 +52,17 @@ def handler(event, context):
     table = dynamodb.Table(METADATA_TABLE)
     table.put_item(
         Item={
-            "photoId":      photo_id,
-            "originalKey":  original_key,
-            "thumbnailKey": thumbnail_key,
-            "previewKey":   preview_key,
-            "tags":         tags,
-            "likes":        0,
-            "uploadDate":   datetime.now(timezone.utc).isoformat(),
-            # Derive a human-readable title from the filename (strip leading path)
-            "title":        original_key.rsplit("/", 1)[-1],
+            "photoId":        photo_id,
+            "originalKey":    original_key,
+            "thumbnailKey":   thumbnail_key,
+            "previewKey":     preview_key,
+            "tags":           tags,
+            "likes":          0,
+            "uploadDate":     datetime.now(timezone.utc).isoformat(),
+            "title":          file_name,
+            "fileName":       file_name,
+            "photographerId": photographer_id,
+            "status":         "active",
         }
     )
 

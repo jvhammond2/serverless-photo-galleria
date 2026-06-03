@@ -52,9 +52,9 @@ def _handle_single(session, meta):
     if not photo_id or tier not in TIERS:
         return _err(400, "Invalid session metadata")
 
-    table    = boto3.resource("dynamodb").Table(os.environ["METADATA_TABLE"])
-    resp     = table.get_item(Key={"photoId": photo_id})
-    item     = resp.get("Item")
+    table = boto3.resource("dynamodb").Table(os.environ["METADATA_TABLE"])
+    resp  = table.get_item(Key={"photoId": photo_id})
+    item  = resp.get("Item")
     if not item:
         return _err(404, "Photo not found")
 
@@ -64,7 +64,6 @@ def _handle_single(session, meta):
 
     _record_orders(session, [{"photoId": photo_id, "tier": tier,
                                "fileName": item.get("fileName", photo_id)}])
-
     return {
         "statusCode": 200,
         "headers": CORS,
@@ -86,7 +85,8 @@ def _handle_multi(session, meta):
         if ":" not in pair:
             continue
         photo_id, tier = pair.rsplit(":", 1)
-        photo_id = photo_id.strip(); tier = tier.strip()
+        photo_id = photo_id.strip()
+        tier     = tier.strip()
         if tier not in TIERS:
             continue
         resp = table.get_item(Key={"photoId": photo_id})
@@ -103,7 +103,6 @@ def _handle_multi(session, meta):
         return _err(404, "No downloadable files found")
 
     _record_orders(session, orders)
-
     return {
         "statusCode": 200,
         "headers": CORS,
@@ -140,18 +139,19 @@ def _record_orders(session, items):
     try:
         table = boto3.resource("dynamodb").Table(os.environ["ORDERS_TABLE"])
         for idx, it in enumerate(items):
-            # For multi-item sessions, suffix the sessionId to keep PK unique
             pk = session.id if len(items) == 1 else f"{session.id}#{idx}"
             table.put_item(
                 Item={
-                    "sessionId":     pk,
-                    "photoId":       it["photoId"],
-                    "tier":          it["tier"],
-                    "fileName":      it["fileName"],
-                    "customerEmail": session.customer_email or "",
-                    "amountTotal":   session.amount_total,
-                    "status":        "paid",
-                    "createdAt":     str(session.created),
+                    "sessionId":       pk,
+                    "photoId":         it["photoId"],
+                    "tier":            it["tier"],
+                    "fileName":        it["fileName"],
+                    "customerEmail":   session.customer_email or "",
+                    "userId":          (session.metadata or {}).get("userId", ""),
+                    "amountTotal":     session.amount_total,
+                    "paymentIntentId": session.payment_intent or "",
+                    "status":          "paid",
+                    "createdAt":       str(session.created),
                 },
                 ConditionExpression="attribute_not_exists(sessionId)",
             )

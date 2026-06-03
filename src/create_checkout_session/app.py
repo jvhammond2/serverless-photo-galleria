@@ -51,6 +51,7 @@ def handler(event, context):
                           .get("authorizer", {})
                           .get("claims", {}))
     customer_email = claims.get("email", "")
+    customer_sub   = claims.get("sub", "")
     customer_site  = os.environ["CUSTOMER_SITE_URL"].rstrip("/")
     table          = boto3.resource("dynamodb").Table(os.environ["METADATA_TABLE"])
 
@@ -103,7 +104,7 @@ def handler(event, context):
             success_url=success_url,
             cancel_url=cancel_url,
             customer_email=customer_email or None,
-            metadata={"photoIds": meta_photos, "multi": "1"},
+            metadata={"photoIds": meta_photos, "multi": "1", "userId": customer_sub},
         )
         return {
             "statusCode": 200,
@@ -157,6 +158,7 @@ def handler(event, context):
             "key_field":  tier_cfg["key_field"],
             "bucket_env": tier_cfg["bucket_env"],
             "multi":      "0",
+            "userId":     customer_sub,
         },
     )
     return {
