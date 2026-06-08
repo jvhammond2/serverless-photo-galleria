@@ -120,13 +120,23 @@ header{position:sticky;top:0;z-index:100;background:rgba(250,250,248,.92);backdr
 /* Lightbox */
 .lb{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:400;opacity:0;pointer-events:none;transition:opacity .2s;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:20px}
 .lb.open{opacity:1;pointer-events:all}
-.lbimg{max-width:90vw;max-height:72vh;object-fit:contain;border-radius:4px;display:block}
+.lbimg{max-width:90vw;max-height:72vh;object-fit:contain;border-radius:4px;display:block;transition:opacity .2s}
 .lbfoot{margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
 .lbtitle{color:#fff;font-size:15px;font-weight:500;width:100%;text-align:center;margin-bottom:4px}
 .lbbtn{display:flex;align-items:center;gap:8px;padding:9px 18px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-family:'Inter',sans-serif;transition:all .15s}
 .lbbtn:hover{background:rgba(255,255,255,.2)}
 .lbbtn.p{background:var(--gold);color:#fff;border-color:var(--gold)}.lbbtn.p:hover{background:#a0741a}
 .lbx{position:absolute;top:20px;right:20px;width:40px;height:40px;border-radius:8px;background:rgba(255,255,255,.15);border:none;cursor:pointer;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center}
+/* Lightbox photographer bio panel */
+.lb-bio{position:absolute;inset:0;background:rgba(0,0,0,.95);display:flex;align-items:center;justify-content:center;padding:40px;opacity:0;pointer-events:none;transition:opacity .2s}
+.lb-bio.open{opacity:1;pointer-events:all}
+.lb-bio-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:36px;max-width:480px;width:100%;text-align:center}
+.lb-bio-avatar{width:72px;height:72px;border-radius:50%;background:var(--gold);color:#000;font-size:28px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.lb-bio-name{color:#fff;font-size:20px;font-weight:600;margin-bottom:6px}
+.lb-bio-location{color:rgba(255,255,255,.5);font-size:13px;margin-bottom:16px}
+.lb-bio-text{color:rgba(255,255,255,.75);font-size:14px;line-height:1.7;margin-bottom:24px}
+.lb-bio-back{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;border-radius:8px;background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.25);color:#fff;font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s}
+.lb-bio-back:hover{background:rgba(255,255,255,.2)}
 /* Purchase modal */
 .pm{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;opacity:0;pointer-events:none;transition:opacity .2s;display:flex;align-items:center;justify-content:center;padding:24px}
 .pm.open{opacity:1;pointer-events:all}
@@ -216,6 +226,8 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 .eq-notes{font-size:11.5px;color:var(--ink-3);margin-top:1px}
 /* Lightbox description */
 .lbdesc{color:rgba(255,255,255,.65);font-size:12.5px;max-width:580px;text-align:center;line-height:1.55;margin-top:-4px}
+.lbtag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;background:rgba(255,255,255,.12);color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.2);margin:2px 3px;cursor:pointer;transition:background .15s}
+.lbtag:hover{background:rgba(255,255,255,.22)}
 /* Card AI description */
 .odesc{font-size:11px;color:rgba(255,255,255,.68);line-height:1.4;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 </style>
@@ -292,6 +304,7 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
   <div class="lbfoot">
     <div class="lbtitle" id="lbtitle"></div>
     <div class="lbdesc" id="lbdesc" style="display:none"></div>
+    <div id="lbtags" style="display:none;width:100%;text-align:center;margin-top:-4px;margin-bottom:4px"></div>
     <div id="lb-photographer" style="display:none;width:100%;text-align:center;margin-bottom:4px">
       <button class="lbbtn" id="lb-profile-btn" onclick="lbViewProfile()" style="background:rgba(255,255,255,.08);margin:0 auto">
         <i class="ti ti-user"></i> <span id="lb-photographer-name">View Photographer</span>
@@ -299,7 +312,16 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
     </div>
     <button class="lbbtn" id="lb-like-btn" onclick="lbLike()"><i class="ti ti-heart"></i> Like</button>
     <button class="lbbtn" onclick="lbCart()"><i class="ti ti-shopping-bag"></i> Add to Cart</button>
-    <button class="lbbtn p" onclick="lbBuy()"><i class="ti ti-credit-card"></i> Purchase Print</button>
+  </div>
+  <!-- Photographer bio panel (shown inside lightbox) -->
+  <div class="lb-bio" id="lb-bio">
+    <div class="lb-bio-card">
+      <div class="lb-bio-avatar" id="lb-bio-avatar">J</div>
+      <div class="lb-bio-name" id="lb-bio-name">Photographer</div>
+      <div class="lb-bio-location" id="lb-bio-location"></div>
+      <div class="lb-bio-text" id="lb-bio-text">Independent photographer.</div>
+      <button class="lb-bio-back" onclick="closeBio()"><i class="ti ti-arrow-left"></i> Back to Photo</button>
+    </div>
   </div>
 </div>
 
@@ -388,16 +410,6 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 </div>
 
 <!-- ── Photographer bio strip ───────────────────────────────────────────── -->
-<div class="photo-strip" id="photo-strip" style="display:none">
-  <div class="photo-strip-inner">
-    <div class="photo-avatar" id="ph-avatar">G</div>
-    <div class="photo-info">
-      <div class="photo-name" id="ph-name"></div>
-      <div class="photo-bio-short" id="ph-bio-short"></div>
-    </div>
-    <button class="photo-viewbtn" onclick="openProfileModal()"><i class="ti ti-user"></i> View Profile</button>
-  </div>
-</div>
 
 <div class="page">
   <div class="section" id="gal">
@@ -419,7 +431,7 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 <footer>
   <div class="fi">
     <div><div class="fb">Galleria</div><div class="fd">Fine art photography prints from independent photographers. Museum-quality giclée, canvas, and metal prints shipped worldwide.</div></div>
-    <div><div class="fh">Shop</div><a class="fl" onclick="document.getElementById('gal').scrollIntoView({behavior:'smooth'})" style="cursor:pointer">New Arrivals</a><a class="fl" onclick="document.getElementById('si').value='limited';onSearch('limited');document.getElementById('gal').scrollIntoView({behavior:'smooth'})" style="cursor:pointer">Limited Editions</a><a class="fl" onclick="document.getElementById('gal').scrollIntoView({behavior:'smooth'})" style="cursor:pointer">Collections</a><a class="fl" onclick="openMod()" style="cursor:pointer">Gift Cards</a></div>
+    <div><div class="fh">Shop</div><a class="fl" onclick="document.getElementById('gal').scrollIntoView({behavior:'smooth'})" style="cursor:pointer">New Arrivals</a><a class="fl" onclick="toast('Limited Editions — coming soon! Photographers will be able to mark prints as limited runs with scarcity counters.','ok')" style="cursor:pointer;opacity:.6">Limited Editions <span style="font-size:10px;background:rgba(255,255,255,.15);padding:1px 5px;border-radius:4px;margin-left:4px">Soon</span></a><a class="fl" onclick="toast('Collections — coming soon! Curated thematic galleries hand-picked by our editorial team.','ok')" style="cursor:pointer;opacity:.6">Collections <span style="font-size:10px;background:rgba(255,255,255,.15);padding:1px 5px;border-radius:4px;margin-left:4px">Soon</span></a><a class="fl" onclick="toast('Gift Cards — coming soon! Give the gift of fine art photography to someone special.','ok')" style="cursor:pointer;opacity:.6">Gift Cards <span style="font-size:10px;background:rgba(255,255,255,.15);padding:1px 5px;border-radius:4px;margin-left:4px">Soon</span></a></div>
     <div><div class="fh">Support</div><a class="fl" onclick="openInfo('sizes')" style="cursor:pointer">Print Sizes Guide</a><a class="fl" onclick="openInfo('shipping')" style="cursor:pointer">Shipping &amp; Returns</a><a class="fl" onclick="openInfo('track')" style="cursor:pointer">Track Your Order</a></div>
     <div><div class="fh">Company</div><a class="fl" onclick="openInfo('about')" style="cursor:pointer">About Galleria</a><a class="fl" onclick="openInfo('photographers')" style="cursor:pointer">For Photographers</a><a class="fl" onclick="openInfo('press')" style="cursor:pointer">Press</a></div>
   </div>
@@ -459,7 +471,6 @@ window.onload = () => {
   }
   loadGallery();
   handleUrlParams();
-  loadProfile();
 };
 
 // ── URL param handling (success / cancelled returns from Stripe) ──────────
@@ -678,6 +689,18 @@ function openLB(p) {
   const desc = p.aiDescription || '';
   descEl.textContent = desc;
   descEl.style.display = desc ? '' : 'none';
+  // Tags
+  const tagsEl = document.getElementById('lbtags');
+  const tags = (p.tags || []).slice(0, 8);
+  if (tags.length) {
+    tagsEl.innerHTML = tags.map(t => {
+      const label = typeof t === 'object' ? (t.Name || '') : t;
+      return `<span class="lbtag" onclick="closeLB();document.getElementById('si').value='${label}';onSearch('${label}');document.getElementById('gal').scrollIntoView({behavior:'smooth'})">${label}</span>`;
+    }).join('');
+    tagsEl.style.display = '';
+  } else {
+    tagsEl.style.display = 'none';
+  }
   // Photographer profile button
   const pgEl = document.getElementById('lb-photographer');
   const pgName = p.photographerName || p.photographerDisplayName || '';
@@ -714,15 +737,33 @@ function lbLike() {
 }
 function lbCart() { if (lbPhoto) { addCart(lbPhoto.photoId); } }
 function lbBuy() { if (lbPhoto) { closeLB(); openPurchase(lbPhoto); } }
-function lbViewProfile() {
+async function lbViewProfile() {
   if (!lbPhoto) return;
-  closeLB();
-  // Open the photographer profile modal if it exists, otherwise show their photos filtered
+  const bioPanel = document.getElementById('lb-bio');
+  // Populate with whatever we already have on the photo object
+  const name = lbPhoto.photographerName || lbPhoto.photographerDisplayName || 'Photographer';
+  const initial = name.charAt(0).toUpperCase();
+  document.getElementById('lb-bio-avatar').textContent = initial;
+  document.getElementById('lb-bio-name').textContent = name;
+  document.getElementById('lb-bio-location').textContent = lbPhoto.photographerLocation || '';
+  document.getElementById('lb-bio-text').textContent = lbPhoto.photographerBio || 'Independent photographer sharing their work on Galleria.';
+  bioPanel.classList.add('open');
+  // Try to fetch richer profile data in the background
   if (lbPhoto.photographerId) {
-    loadGallery('', lbPhoto.photographerId);
-    document.getElementById('gal').scrollIntoView({behavior:'smooth'});
-    toast((lbPhoto.photographerName || 'Photographer') + "'s photos", 'ok');
+    try {
+      const r = await fetch(C.ApiBase + '/profile?id=' + encodeURIComponent(lbPhoto.photographerId));
+      if (r.ok) {
+        const p = await r.json();
+        if (p.displayName) document.getElementById('lb-bio-name').textContent = p.displayName;
+        if (p.location)    document.getElementById('lb-bio-location').textContent = p.location;
+        if (p.bio)         document.getElementById('lb-bio-text').textContent = p.bio;
+        if (p.displayName) document.getElementById('lb-bio-avatar').textContent = p.displayName.charAt(0).toUpperCase();
+      }
+    } catch(e) { /* silently ignore */ }
   }
+}
+function closeBio() {
+  document.getElementById('lb-bio').classList.remove('open');
 }
 
 // ── Purchase modal ────────────────────────────────────────────────────────
@@ -1059,7 +1100,7 @@ function prmClick(e) { if (e.target === e.currentTarget) closeProfileModal(); }
 let tt;
 function toast(m) { const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'),2800); }
 function E(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-document.addEventListener('keydown', e => { if (e.key==='Escape'){closeLB();closeMod();closeCart();closePurchase();closeProfileModal();} });
+document.addEventListener('keydown', e => { if (e.key==='Escape'){closeBio();closeLB();closeMod();closeCart();closePurchase();closeProfileModal();closeInfo();} });
 </script>
 </body>
 </html>

@@ -2104,7 +2104,7 @@ Resources:
       ArtifactS3Location: !Sub s3://${CanaryArtifactsBucket}
       RuntimeVersion: syn-nodejs-puppeteer-9.1
       Schedule:
-        Expression: "rate(1 hour)"
+        Expression: "cron(0 0 * * ? *)"
       StartCanaryAfterCreation: true
       Code:
         Handler: pageLoadBlueprint.handler
