@@ -27,6 +27,9 @@ import boto3
 import json
 import os
 
+from aws_xray_sdk.core import patch_all, xray_recorder
+patch_all()
+
 s3 = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
 
@@ -86,6 +89,8 @@ def handler(event, context):
     if not preview_key:
         return _error(503, "This photo has not finished processing yet.")
 
+    _annotate(photoId=photo_id, userId=user_id, urlType=url_type)
+
     # ── Generate the presigned URL ────────────────────────────────────────────
     if url_type == "preview":
         url = s3.generate_presigned_url(
@@ -115,6 +120,16 @@ def handler(event, context):
         "headers": HEADERS,
         "body": json.dumps({"url": url, "expiresIn": PURCHASE_TTL, "filename": filename}),
     }
+
+
+def _annotate(**kwargs):
+    try:
+        seg = xray_recorder.current_subsegment() or xray_recorder.current_segment()
+        if seg:
+            for k, v in kwargs.items():
+                seg.put_annotation(k, str(v))
+    except Exception:
+        pass
 
 
 # ── Template fixes required for DownloadFunction ──────────────────────────────

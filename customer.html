@@ -4,10 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Galleria — Fine Art Photography Prints</title>
+<script src="i18n.js" defer></script>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#FAFAF8;--surface:#FFFFFF;--ink:#111111;--ink-2:#555555;--ink-3:#767676;--border:#E8E8E5;--gold:#B8861E;--green:#1a7a3a}
@@ -52,7 +55,7 @@ header{position:sticky;top:0;z-index:100;background:rgba(250,250,248,.92);backdr
 .pc{break-inside:avoid;margin-bottom:16px;background:var(--surface);border-radius:10px;overflow:hidden;border:1px solid var(--border);cursor:pointer;transition:box-shadow .18s,transform .18s;position:relative}
 .pc:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,0,0,.10)}
 .pw{position:relative;overflow:hidden}
-.pi{width:100%;display:block;transition:transform .35s;object-fit:cover}
+.pi{width:100%;display:block;transition:transform .35s;object-fit:cover;-webkit-user-drag:none;user-select:none}
 .pc:hover .pi{transform:scale(1.04)}
 .po{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.78),rgba(0,0,0,.1) 50%,transparent);display:flex;flex-direction:column;justify-content:flex-end;padding:16px;opacity:0;transition:opacity .22s}
 .pc:hover .po{opacity:1}
@@ -72,8 +75,30 @@ header{position:sticky;top:0;z-index:100;background:rgba(250,250,248,.92);backdr
 .pprice{font-size:13px;color:var(--ink-2)}
 .plike{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-3);cursor:pointer;border:none;background:none;font-family:inherit;padding:0;transition:color .13s}
 .plike:hover,.plike.liked{color:#e44}
+
+/* Map view */
+.map-toggle{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:none;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--ink-2);cursor:pointer;transition:all .15s;white-space:nowrap}
+.map-toggle:hover{border-color:var(--ink-3);color:var(--ink)}
+.map-toggle.active{border-color:var(--ink);background:var(--ink);color:var(--surface)}
+#mapView{display:none;width:100%;border-radius:12px;overflow:hidden;border:1px solid var(--border);margin-bottom:20px}
+#mapView.open{display:block}
+#mapLeaflet{height:480px;width:100%}
+.map-no-gps{text-align:center;padding:48px 32px;color:var(--ink-3);font-size:13px}
+/* Custom Leaflet thumbnail markers */
+.lf-marker{width:54px;height:54px;border-radius:8px;object-fit:cover;border:2.5px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.35);cursor:pointer;transition:transform .15s}
+.lf-marker:hover{transform:scale(1.1)}
 .sbox{text-align:center;padding:64px 32px;color:var(--ink-3)}
 .sbox i{font-size:48px;display:block;margin-bottom:16px}
+/* Color mood swatch filter */
+.color-filter{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:0 0 12px;scrollbar-width:none;margin-bottom:8px}
+.color-filter::-webkit-scrollbar{display:none}
+.cf-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:none;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--ink-2);cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0}
+.cf-btn:hover{border-color:var(--ink-3);color:var(--ink)}
+.cf-btn.active{border-color:var(--ink);background:var(--ink);color:var(--surface)}
+.cf-swatch{width:12px;height:12px;border-radius:50%;border:1.5px solid rgba(0,0,0,.12);flex-shrink:0}
+/* Dominant color dots on photo card footer */
+.pdots{display:flex;gap:3px;align-items:center}
+.pdot{width:10px;height:10px;border-radius:50%;border:1px solid rgba(0,0,0,.1)}
 /* Cart drawer */
 .cb{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;opacity:0;pointer-events:none;transition:opacity .2s}
 .cb.open{opacity:1;pointer-events:all}
@@ -118,15 +143,25 @@ header{position:sticky;top:0;z-index:100;background:rgba(250,250,248,.92);backdr
 .mstat{margin-top:12px;font-size:13px;text-align:center;min-height:20px}
 .mstat.err{color:#c33}.mstat.ok{color:#2a7a2a}
 /* Lightbox */
-.lb{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:400;opacity:0;pointer-events:none;transition:opacity .2s;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:20px}
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:400;opacity:0;pointer-events:none;transition:opacity .2s,background .6s;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:20px}
 .lb.open{opacity:1;pointer-events:all}
-.lbimg{max-width:90vw;max-height:72vh;object-fit:contain;border-radius:4px;display:block;transition:opacity .2s}
+/* Ambient glow — radial bloom behind the photo matching dominant color */
+.lb-ambient{position:absolute;inset:0;pointer-events:none;transition:background 0.7s ease;z-index:0;border-radius:0;}
+.lb>*:not(.lb-ambient){position:relative;z-index:1;}
+.lbimg{max-width:90vw;max-height:72vh;object-fit:contain;border-radius:4px;display:block;transition:opacity .2s;-webkit-user-drag:none;user-select:none}
 .lbfoot{margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
 .lbtitle{color:#fff;font-size:15px;font-weight:500;width:100%;text-align:center;margin-bottom:4px}
 .lbbtn{display:flex;align-items:center;gap:8px;padding:9px 18px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-family:'Inter',sans-serif;transition:all .15s}
 .lbbtn:hover{background:rgba(255,255,255,.2)}
 .lbbtn.p{background:var(--gold);color:#fff;border-color:var(--gold)}.lbbtn.p:hover{background:#a0741a}
 .lbx{position:absolute;top:20px;right:20px;width:40px;height:40px;border-radius:8px;background:rgba(255,255,255,.15);border:none;cursor:pointer;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center}
+/* Lightbox similar strip */
+.lb-similar{width:100%;max-width:680px;margin-top:18px;display:none}
+.lb-similar-label{color:rgba(255,255,255,.45);font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;text-align:center}
+.lb-similar-row{display:flex;gap:8px;overflow-x:auto;justify-content:center;scrollbar-width:none}
+.lb-similar-row::-webkit-scrollbar{display:none}
+.lb-sim-thumb{width:72px;height:72px;object-fit:cover;border-radius:6px;cursor:pointer;opacity:.75;transition:opacity .15s,transform .15s;flex-shrink:0;-webkit-user-drag:none}
+.lb-sim-thumb:hover{opacity:1;transform:scale(1.06)}
 /* Lightbox photographer bio panel */
 .lb-bio{position:absolute;inset:0;background:rgba(0,0,0,.95);display:flex;align-items:center;justify-content:center;padding:40px;opacity:0;pointer-events:none;transition:opacity .2s}
 .lb-bio.open{opacity:1;pointer-events:all}
@@ -135,8 +170,54 @@ header{position:sticky;top:0;z-index:100;background:rgba(250,250,248,.92);backdr
 .lb-bio-name{color:#fff;font-size:20px;font-weight:600;margin-bottom:6px}
 .lb-bio-location{color:rgba(255,255,255,.5);font-size:13px;margin-bottom:16px}
 .lb-bio-text{color:rgba(255,255,255,.75);font-size:14px;line-height:1.7;margin-bottom:24px}
+.lb-bio-follow{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;border-radius:8px;background:var(--gold);border:none;color:#0a0a0a;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s;margin-bottom:10px}
+.lb-bio-follow:hover{opacity:.88}
+.lb-bio-follow.following{background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.25);color:#fff;font-weight:500}
+.lb-bio-follow.following:hover{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.4);color:#fca5a5}
 .lb-bio-back{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;border-radius:8px;background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.25);color:#fff;font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s}
 .lb-bio-back:hover{background:rgba(255,255,255,.2)}
+/* Wall mockup overlay */
+.lb-wall{position:absolute;inset:0;z-index:12;background:linear-gradient(175deg,#ddd8d0 0%,#cec8be 55%,#c0b9ae 100%);
+  opacity:0;pointer-events:none;transition:opacity .25s;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;overflow:hidden;}
+.lb-wall.open{opacity:1;pointer-events:all}
+/* Wall surface detail: subtle horizontal lines for plaster texture */
+.lb-wall::before{content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(180deg,transparent,transparent 39px,rgba(0,0,0,.025) 40px);
+  pointer-events:none;}
+/* Baseboard */
+.lb-wall::after{content:'';position:absolute;bottom:0;left:0;right:0;height:48px;
+  background:linear-gradient(180deg,#c4bdb2 0%,#b8b0a4 100%);
+  border-top:2px solid rgba(0,0,0,.12);pointer-events:none;}
+.lb-wall-close{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;
+  background:rgba(0,0,0,.18);border:none;color:#fff;font-size:17px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:background .15s;z-index:2}
+.lb-wall-close:hover{background:rgba(0,0,0,.35)}
+/* Hanging wire */
+.lb-wall-wire{position:relative;z-index:1;width:2px;height:32px;
+  background:linear-gradient(180deg,transparent,rgba(0,0,0,.25));margin-bottom:-1px;}
+/* Frame wrapper with perspective */
+.lb-wall-scene{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;
+  filter:drop-shadow(0 24px 48px rgba(0,0,0,.55));}
+/* White mat + frame */
+.lb-wall-frame{background:#fff;border:3px solid #1a1a1a;padding:18px;
+  transition:width .35s cubic-bezier(.4,0,.2,1),height .35s cubic-bezier(.4,0,.2,1),
+             padding .35s cubic-bezier(.4,0,.2,1);position:relative;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);}
+/* Frame inner bevel */
+.lb-wall-frame::before{content:'';position:absolute;inset:3px;
+  border:1px solid rgba(0,0,0,.06);pointer-events:none;}
+.lb-wall-img{display:block;object-fit:cover;width:100%;height:100%;}
+/* Size buttons */
+.lb-wall-sizes{display:flex;gap:8px;margin-top:28px;z-index:1;position:relative;}
+.lb-wsz{padding:6px 16px;border-radius:20px;border:1.5px solid rgba(255,255,255,.5);
+  background:rgba(255,255,255,.15);color:#fff;font-family:'Inter',sans-serif;
+  font-size:11.5px;font-weight:500;cursor:pointer;backdrop-filter:blur(4px);
+  transition:all .15s;}
+.lb-wsz:hover{background:rgba(255,255,255,.28)}
+.lb-wsz.active{background:#fff;color:#111;border-color:#fff;}
+.lb-wall-label{margin-top:12px;font-size:11px;color:rgba(255,255,255,.5);
+  letter-spacing:.06em;text-transform:uppercase;z-index:1;position:relative;}
 /* Purchase modal */
 .pm{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;opacity:0;pointer-events:none;transition:opacity .2s;display:flex;align-items:center;justify-content:center;padding:24px}
 .pm.open{opacity:1;pointer-events:all}
@@ -224,12 +305,110 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 .eq-type{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink-3);font-weight:600;min-width:50px;padding-top:2px}
 .eq-name{font-size:13px;font-weight:500;color:var(--ink)}
 .eq-notes{font-size:11.5px;color:var(--ink-3);margin-top:1px}
+/* Voice note audio player in customer lightbox */
+.lb-audio-player{margin:8px 0 2px;display:flex;align-items:center;gap:10px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
+  border-radius:10px;padding:8px 12px;}
+.lb-audio-icon{font-size:18px;color:rgba(255,255,255,.7);flex-shrink:0;}
+.lb-audio-info{flex:1;min-width:0;}
+.lb-audio-label{font-size:10.5px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:4px;}
+.lb-audio-player audio{width:100%;height:28px;display:block;opacity:.9;}
+/* Series browse section */
+#seriesSection{margin-bottom:32px;}
+.series-browse-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-top:14px;}
+.sbcard{border-radius:12px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,.08);transition:transform .15s,border-color .15s;background:rgba(255,255,255,.04);}
+.sbcard:hover{transform:translateY(-2px);border-color:rgba(255,255,255,.2);}
+.sbcard-cover{width:100%;aspect-ratio:4/3;background:#1a1a1a;overflow:hidden;position:relative;}
+.sbcard-cover img{width:100%;height:100%;object-fit:cover;display:block;}
+.sbcard-cover-empty{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.25);font-size:32px;}
+.sbcard-info{padding:10px 12px;}
+.sbcard-title{font-size:13px;font-weight:600;color:#fff;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sbcard-meta{font-size:11.5px;color:rgba(255,255,255,.45);}
+.sbcard-desc{font-size:11.5px;color:rgba(255,255,255,.4);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
+/* Series detail modal */
+#seriesDetailModal{position:fixed;inset:0;z-index:850;background:rgba(0,0,0,.85);display:none;align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto;}
+#seriesDetailModal.open{display:flex;}
+.sdm-box{background:#181818;border:1px solid rgba(255,255,255,.1);border-radius:16px;width:100%;max-width:900px;margin:auto;overflow:hidden;}
+.sdm-header{padding:22px 24px 16px;border-bottom:1px solid rgba(255,255,255,.08);}
+.sdm-close{float:right;background:none;border:none;color:rgba(255,255,255,.6);font-size:22px;cursor:pointer;line-height:1;padding:0;}
+.sdm-close:hover{color:#fff;}
+.sdm-title{font-size:20px;font-weight:700;color:#fff;margin-bottom:6px;}
+.sdm-desc{font-size:13px;color:rgba(255,255,255,.55);margin-bottom:0;}
+.sdm-meta{font-size:12px;color:rgba(255,255,255,.35);margin-top:6px;}
+.sdm-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;padding:18px 24px;}
+.sdm-photo{border-radius:8px;overflow:hidden;cursor:pointer;position:relative;aspect-ratio:1;border:1px solid rgba(255,255,255,.06);transition:opacity .15s;}
+.sdm-photo:hover{opacity:.85;}
+.sdm-photo img{width:100%;height:100%;object-fit:cover;display:block;}
+.sdm-photo-num{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.65);color:#fff;font-size:10px;font-weight:700;
+  padding:2px 6px;border-radius:4px;}
+.sdm-empty{padding:32px 24px;text-align:center;color:rgba(255,255,255,.35);font-size:13px;}
+/* My Collection modal */
+#collectionModal{position:fixed;inset:0;z-index:850;background:rgba(0,0,0,.85);display:none;align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto;}
+#collectionModal.open{display:flex;}
+.col-box{background:#181818;border:1px solid rgba(255,255,255,.1);border-radius:16px;width:100%;max-width:900px;margin:auto;overflow:hidden;}
+.col-header{padding:22px 24px 16px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:12px;}
+.col-header-title{font-size:18px;font-weight:700;color:#fff;flex:1;}
+.col-header-meta{font-size:12px;color:rgba(255,255,255,.4);}
+.col-close{background:none;border:none;color:rgba(255,255,255,.6);font-size:22px;cursor:pointer;line-height:1;padding:0;}
+.col-close:hover{color:#fff;}
+.col-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:18px 24px;}
+.col-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:10px;overflow:hidden;}
+.col-thumb{width:100%;aspect-ratio:1;background:#111;overflow:hidden;}
+.col-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.col-thumb-empty{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.2);font-size:28px;}
+.col-info{padding:10px 11px;}
+.col-title{font-size:12.5px;font-weight:600;color:#fff;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.col-sub{font-size:11px;color:rgba(255,255,255,.4);margin-bottom:7px;}
+.col-tier{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;
+  background:rgba(212,175,55,.12);color:#d4af37;border:1px solid rgba(212,175,55,.25);}
+.col-dl-btn{display:flex;align-items:center;justify-content:center;gap:5px;width:100%;margin-top:7px;
+  padding:6px 10px;border-radius:7px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+  color:#fff;font-size:12px;font-weight:500;cursor:pointer;transition:background .13s;}
+.col-dl-btn:hover{background:rgba(255,255,255,.15);}
+.col-empty{padding:40px 24px;text-align:center;color:rgba(255,255,255,.35);font-size:13px;}
+.col-loading{padding:32px 24px;text-align:center;color:rgba(255,255,255,.4);font-size:13px;}
+/* Language switcher */
+.lang-switcher{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:7px;
+  border:1.5px solid var(--border);background:transparent;cursor:pointer;}
+.lang-switcher i{font-size:15px;color:var(--ink-3);}
+.lang-select{background:transparent;border:none;color:var(--ink);font-family:'Inter',sans-serif;
+  font-size:12.5px;cursor:pointer;outline:none;padding:0;max-width:130px;}
+.lang-select option{background:var(--surface);color:var(--ink);}
 /* Lightbox description */
 .lbdesc{color:rgba(255,255,255,.65);font-size:12.5px;max-width:580px;text-align:center;line-height:1.55;margin-top:-4px}
 .lbtag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;background:rgba(255,255,255,.12);color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.2);margin:2px 3px;cursor:pointer;transition:background .15s}
 .lbtag:hover{background:rgba(255,255,255,.22)}
 /* Card AI description */
 .odesc{font-size:11px;color:rgba(255,255,255,.68);line-height:1.4;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* ── Collections nav ── */
+.nav-item{display:flex;align-items:center;gap:4px;padding:0 14px;height:62px;font-size:13.5px;font-weight:500;color:var(--ink-2);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none;font-family:'Inter',sans-serif;position:relative;transition:color .12s}
+.nav-item:hover{color:var(--ink)}
+.nav-item.open{color:var(--ink);border-bottom-color:var(--ink)}
+.nav-item i.ti-chevron-down{font-size:13px;transition:transform .15s}
+.nav-item.open i.ti-chevron-down{transform:rotate(180deg)}
+.nav-items{display:flex;align-items:stretch}
+.nav-dropdown{display:none;position:absolute;top:62px;left:0;background:var(--surface);border:1px solid var(--border);border-top:none;z-index:150;min-width:200px;padding:6px;border-radius:0 0 10px 10px;box-shadow:0 8px 24px rgba(0,0,0,.06)}
+.nav-dropdown.open{display:block}
+.nav-dd-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;font-size:13px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.nav-dd-item:hover{background:var(--bg);color:var(--ink)}
+.nav-dd-item i{font-size:15px}
+.nav-dd-soon{font-size:10px;padding:1px 6px;border-radius:20px;background:var(--bg);color:var(--ink-3);border:1px solid var(--border);margin-left:auto}
+.nav-dd-divider{border:none;border-top:1px solid var(--border);margin:4px 8px}
+.nav-dd-collections{width:560px;padding:14px 16px}
+.nav-dd-header{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);margin-bottom:10px;padding:0 4px}
+.cat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:2px}
+.cat-grid-item{display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:7px;font-size:12px;color:var(--ink-2);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cat-grid-item:hover{background:var(--bg);color:var(--ink)}
+.cat-grid-item i{font-size:15px;color:var(--ink-3);flex-shrink:0}
+.cat-grid-item:hover i{color:var(--ink)}
+/* Active category pill in secondary strip */
+.cat-active-strip{background:var(--bg);border-bottom:1px solid var(--border);padding:0 32px;display:none}
+.cat-active-strip.vis{display:flex}
+.cat-active-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;height:40px;gap:8px;font-size:13px}
+.cat-pill{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;background:var(--ink);color:#fff;font-size:12px;font-weight:500}
+.cat-pill-clear{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:14px;line-height:1;margin-left:2px;padding:0}
 </style>
 </head>
 <body>
@@ -242,11 +421,11 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
     <div class="ct">Cart <span id="ccl" style="font-size:13px;font-weight:400;color:var(--ink-3);"></span></div>
     <button class="xbtn" onclick="closeCart()"><i class="ti ti-x"></i></button>
   </div>
-  <div class="cbody" id="cbody"><div class="cempty"><i class="ti ti-shopping-bag"></i>Your cart is empty</div></div>
+  <div class="cbody" id="cbody"><div class="cempty"><i class="ti ti-shopping-bag"></i><span data-i18n="cart.empty_title">Your cart is empty</span></div></div>
   <div class="cfoot" id="cf" style="display:none">
-    <div class="ctotal"><span>Total</span><span id="ctot">$0.00</span></div>
-    <button class="ckbtn" id="ckbtn" onclick="cartCheckout()"><i class="ti ti-lock"></i> Secure Checkout</button>
-    <div class="cnote"><i class="ti ti-shield-check" style="font-size:13px;vertical-align:-2px;"></i> Powered by Stripe · Secure payment</div>
+    <div class="ctotal"><span data-i18n="cart.total">Total</span><span id="ctot">$0.00</span></div>
+    <button class="ckbtn" id="ckbtn" onclick="cartCheckout()"><i class="ti ti-lock"></i> <span data-i18n="cart.checkout">Checkout</span></button>
+    <div class="cnote"><i class="ti ti-shield-check" style="font-size:13px;vertical-align:-2px;"></i> <span data-i18n="cart.secure_note">Secure checkout powered by Stripe</span></div>
   </div>
 </div>
 
@@ -265,33 +444,33 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 <div class="mb" id="mb" onclick="mbClick(event)">
   <div class="mo">
     <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="xbtn" onclick="closeMod()"><i class="ti ti-x"></i></button></div>
-    <div class="mtitle">Welcome to Galleria</div>
-    <div class="msub">Sign in to like photos and purchase prints.</div>
+    <div class="mtitle" data-i18n="auth.welcome_back">Welcome to Galleria</div>
+    <div class="msub" data-i18n="auth.sign_in_sub">Sign in to like photos and purchase prints.</div>
     <div class="mtabs">
-      <button class="mtab active" id="t1" onclick="switchTab('in')">Sign In</button>
-      <button class="mtab" id="t2" onclick="switchTab('reg')">Create Account</button>
+      <button class="mtab active" id="t1" onclick="switchTab('in')" data-i18n="auth.tab_signin">Sign In</button>
+      <button class="mtab" id="t2" onclick="switchTab('reg')" data-i18n="auth.tab_signup">Create Account</button>
     </div>
     <!-- Sign in / Register fields -->
     <div id="auth-fields">
-      <input class="mfield" type="text" id="an" placeholder="Full name" autocomplete="name" style="display:none">
-      <input class="mfield" type="email" id="ae" placeholder="Email address" autocomplete="email">
-      <input class="mfield" type="password" id="ap" placeholder="Password" autocomplete="current-password">
+      <input class="mfield" type="text" id="an" placeholder="Full name" data-i18n-placeholder="auth.field_name" autocomplete="name" style="display:none">
+      <input class="mfield" type="email" id="ae" placeholder="Email address" data-i18n-placeholder="auth.field_email" autocomplete="email">
+      <input class="mfield" type="password" id="ap" placeholder="Password" data-i18n-placeholder="auth.field_password" autocomplete="current-password">
       <div style="text-align:right;margin-top:-6px;margin-bottom:14px">
-        <button onclick="switchTab('forgot')" style="background:none;border:none;font-size:12.5px;color:var(--ink-2);cursor:pointer;padding:0;font-family:inherit" id="fp-link">Forgot password?</button>
+        <button onclick="switchTab('forgot')" style="background:none;border:none;font-size:12.5px;color:var(--ink-2);cursor:pointer;padding:0;font-family:inherit" id="fp-link" data-i18n="auth.link_forgot">Forgot Password?</button>
       </div>
-      <button class="msub-btn" id="as" onclick="doAuth()">Sign In</button>
+      <button class="msub-btn" id="as" onclick="doAuth()" data-i18n="auth.btn_signin">Sign In</button>
     </div>
     <!-- Forgot password fields -->
     <div id="forgot-fields" style="display:none">
-      <input class="mfield" type="email" id="fp-email" placeholder="Your email address" autocomplete="email">
-      <button class="msub-btn" id="fp-send" onclick="sendResetCode()">Send Reset Code</button>
+      <input class="mfield" type="email" id="fp-email" placeholder="Your email address" data-i18n-placeholder="auth.field_email" autocomplete="email">
+      <button class="msub-btn" id="fp-send" onclick="sendResetCode()" data-i18n="auth.btn_send_code">Send Reset Code</button>
     </div>
     <!-- Reset code + new password fields -->
     <div id="reset-fields" style="display:none">
-      <p style="font-size:13px;color:var(--ink-2);margin-bottom:16px">Check your email for a verification code.</p>
-      <input class="mfield" type="text" id="fp-code" placeholder="Verification code" autocomplete="one-time-code">
-      <input class="mfield" type="password" id="fp-newpass" placeholder="New password" autocomplete="new-password">
-      <button class="msub-btn" id="fp-confirm" onclick="confirmReset()">Reset Password</button>
+      <p style="font-size:13px;color:var(--ink-2);margin-bottom:16px" data-i18n="auth.reset_hint">Check your email for a verification code.</p>
+      <input class="mfield" type="text" id="fp-code" placeholder="Verification code" data-i18n-placeholder="auth.field_code" autocomplete="one-time-code">
+      <input class="mfield" type="password" id="fp-newpass" placeholder="New password" data-i18n-placeholder="auth.field_password" autocomplete="new-password">
+      <button class="msub-btn" id="fp-confirm" onclick="confirmReset()" data-i18n="auth.btn_confirm_reset">Confirm New Password</button>
     </div>
     <div class="mstat" id="ast"></div>
   </div>
@@ -299,6 +478,7 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 
 <!-- ── Lightbox ────────────────────────────────────────────────────────── -->
 <div class="lb" id="lb">
+  <div class="lb-ambient" id="lbAmbient"></div>
   <button class="lbx" onclick="closeLB()"><i class="ti ti-x"></i></button>
   <img class="lbimg" id="lbimg" src="" alt="">
   <div class="lbfoot">
@@ -310,17 +490,52 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
         <i class="ti ti-user"></i> <span id="lb-photographer-name">View Photographer</span>
       </button>
     </div>
-    <button class="lbbtn" id="lb-like-btn" onclick="lbLike()"><i class="ti ti-heart"></i> Like</button>
-    <button class="lbbtn" onclick="lbCart()"><i class="ti ti-shopping-bag"></i> Add to Cart</button>
+    <button class="lbbtn" id="lb-wall-btn" onclick="openWallPreview()"><i class="ti ti-home"></i> Wall Preview</button>
+    <div id="lb-audio-wrap" style="display:none;width:100%">
+      <div class="lb-audio-player">
+        <span class="lb-audio-icon"><i class="ti ti-microphone"></i></span>
+        <div class="lb-audio-info">
+          <div class="lb-audio-label">Photographer's Voice Note</div>
+          <audio id="lb-audio-el" controls preload="none" style="width:100%;height:28px"></audio>
+        </div>
+      </div>
+    </div>
+    <button class="lbbtn" id="lb-like-btn" onclick="lbLike()"><i class="ti ti-heart"></i> <span data-i18n="gallery.btn_like">Like</span></button>
+    <button class="lbbtn" onclick="lbCart()"><i class="ti ti-shopping-bag"></i> <span data-i18n="gallery.btn_add_cart">Add to Cart</span></button>
   </div>
-  <!-- Photographer bio panel (shown inside lightbox) -->
+  <!-- Similar photos strip -->
+  <div class="lb-similar" id="lb-similar">
+    <div class="lb-similar-label">Similar Photos</div>
+    <div class="lb-similar-row" id="lb-similar-row"></div>
+  </div>
+  <!-- Wall mockup overlay -->
+  <div class="lb-wall" id="lbWall">
+    <button class="lb-wall-close" onclick="closeWallPreview()"><i class="ti ti-x"></i></button>
+    <div class="lb-wall-scene">
+      <div class="lb-wall-wire" id="lbWallWire"></div>
+      <div class="lb-wall-frame" id="lbWallFrame">
+        <img class="lb-wall-img" id="lbWallImg" src="" alt="">
+      </div>
+    </div>
+    <div class="lb-wall-sizes">
+      <button class="lb-wsz" data-sz="s" onclick="setWallSize('s')">Small (Web)</button>
+      <button class="lb-wsz active" data-sz="m" onclick="setWallSize('m')">Medium (Print)</button>
+      <button class="lb-wsz" data-sz="l" onclick="setWallSize('l')">Large (Pro)</button>
+    </div>
+    <div class="lb-wall-label" id="lbWallLabel">Medium print &mdash; 16&times;20 in</div>
+  </div>
+    <!-- Photographer bio panel (shown inside lightbox) -->
   <div class="lb-bio" id="lb-bio">
     <div class="lb-bio-card">
       <div class="lb-bio-avatar" id="lb-bio-avatar">J</div>
       <div class="lb-bio-name" id="lb-bio-name">Photographer</div>
       <div class="lb-bio-location" id="lb-bio-location"></div>
       <div class="lb-bio-text" id="lb-bio-text">Independent photographer.</div>
-      <button class="lb-bio-back" onclick="closeBio()"><i class="ti ti-arrow-left"></i> Back to Photo</button>
+      <button class="lb-bio-follow" id="lb-follow-btn" onclick="toggleFollow()">
+        <i class="ti ti-user-plus" id="lb-follow-icon"></i>
+        <span id="lb-follow-label" data-i18n="gallery.btn_follow">Follow</span>
+      </button>
+      <button class="lb-bio-back" onclick="closeBio()"><i class="ti ti-arrow-left"></i> <span data-i18n="gallery.btn_view_photographer">View Photographer</span></button>
     </div>
   </div>
 </div>
@@ -329,16 +544,16 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 <div class="pm" id="pm" onclick="pmClick(event)">
   <div class="pm-box">
     <div class="pm-head">
-      <div class="pm-title">Purchase Print</div>
+      <div class="pm-title" data-i18n="purchase.title">Purchase Print</div>
       <button class="xbtn" onclick="closePurchase()"><i class="ti ti-x"></i></button>
     </div>
     <div class="pm-photo" id="pm-photo"></div>
     <div class="tier-grid" id="pm-tiers"></div>
     <button class="pm-buy" id="pm-buybtn" onclick="doPurchase()">
-      <i class="ti ti-lock"></i> Proceed to Checkout
+      <i class="ti ti-lock"></i> <span data-i18n="purchase.btn_buy">Purchase</span>
     </button>
     <div class="pm-stat" id="pm-stat"></div>
-    <div class="pm-secure"><i class="ti ti-shield-check" style="font-size:13px;"></i> Secure payment via Stripe</div>
+    <div class="pm-secure"><i class="ti ti-shield-check" style="font-size:13px;"></i> <span data-i18n="purchase.secure">Secure payment via Stripe</span></div>
   </div>
 </div>
 
@@ -372,10 +587,10 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 <div class="sov" id="sov">
   <div class="sov-box">
     <div class="sov-icon"><i class="ti ti-check"></i></div>
-    <div class="sov-title">Payment Successful!</div>
-    <div class="sov-sub" id="sov-sub">Preparing your download…</div>
+    <div class="sov-title" data-i18n="success.title">Payment Successful!</div>
+    <div class="sov-sub" id="sov-sub" data-i18n="success.sub">Preparing your download…</div>
     <div id="sov-dl"><div class="spinner"></div></div>
-    <button class="sov-continue" onclick="dismissSuccess()">Continue Browsing</button>
+    <button class="sov-continue" onclick="dismissSuccess()" data-i18n="success.continue">Continue Browsing</button>
   </div>
 </div>
 
@@ -383,39 +598,159 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 <header>
   <div class="nav-inner">
     <a class="brand" href="#">Galler<span>ia</span></a>
+
+    <div class="nav-items" id="navItems">
+
+      <!-- Discover ▾ -->
+      <button class="nav-item" id="btn-discover" onclick="navToggle('discover')">
+        <span data-i18n="nav.discover">Discover</span>
+        <i class="ti ti-chevron-down" aria-hidden="true"></i>
+        <div class="nav-dropdown" id="dd-discover">
+          <div class="nav-dd-item" onclick="navSelect('','popular')"><i class="ti ti-flame" aria-hidden="true"></i><span data-i18n="nav.popular">Popular</span></div>
+          <div class="nav-dd-item" onclick="navSelect('','new')"><i class="ti ti-clock" aria-hidden="true"></i><span data-i18n="nav.new_uploads">New</span></div>
+          <div class="nav-dd-item" onclick="navSelect('','editors_choice')"><i class="ti ti-trophy" aria-hidden="true"></i><span data-i18n="nav.editors_choice">Editor's Choice</span></div>
+          <hr class="nav-dd-divider">
+          <div class="nav-dd-item" id="nav-dd-following" onclick="navSelectFeed()" style="display:none"><i class="ti ti-users" aria-hidden="true"></i><span data-i18n="nav.following">Following</span></div>
+          <div class="nav-dd-item" id="nav-dd-following-soon" onclick="authNav()" style="cursor:pointer"><i class="ti ti-users" aria-hidden="true"></i><span data-i18n="nav.following">Following</span><span class="nav-dd-soon" data-i18n="nav.sign_in_to_follow">Sign in</span></div>
+        </div>
+      </button>
+
+      <!-- Collections ▾ -->
+      <button class="nav-item" id="btn-collections" onclick="navToggle('collections')">
+        <span data-i18n="nav.collections">Collections</span>
+        <i class="ti ti-chevron-down" aria-hidden="true"></i>
+        <div class="nav-dropdown nav-dd-collections" id="dd-collections">
+          <div class="nav-dd-header" data-i18n="nav.browse_all_categories">Browse all categories</div>
+          <div class="cat-grid" id="catGrid"></div>
+        </div>
+      </button>
+
+      <!-- Photographers ▾ -->
+      <button class="nav-item" id="btn-photographers" onclick="navToggle('photographers')">
+        <span data-i18n="nav.photographers">Photographers</span>
+        <i class="ti ti-chevron-down" aria-hidden="true"></i>
+        <div class="nav-dropdown" id="dd-photographers">
+          <div class="nav-dd-item"><i class="ti ti-camera" aria-hidden="true"></i><span data-i18n="nav.for_hire">For Hire</span><span class="nav-dd-soon">Soon</span></div>
+          <div class="nav-dd-item"><i class="ti ti-award" aria-hidden="true"></i><span data-i18n="nav.featured">Featured</span><span class="nav-dd-soon">Soon</span></div>
+        </div>
+      </button>
+
+    </div>
+
     <div class="search-wrap">
       <i class="ti ti-search search-icon"></i>
-      <input class="search-input" id="si" type="text" placeholder="Search by tag, style, subject…" oninput="onSearch(this.value)">
+      <input class="search-input" id="si" type="text" placeholder="Search by tag, style, subject…" data-i18n-placeholder="gallery.search_placeholder" oninput="onSearch(this.value)">
       <button class="search-clear" id="sc" onclick="clearSearch()"><i class="ti ti-x"></i></button>
     </div>
     <div class="nav-right">
+      <div id="langSwitcherGallery"></div>
+      <button class="nav-btn" id="colBtn" onclick="openMyCollection()" style="display:none">
+        <i class="ti ti-photo-heart" style="font-size:16px;"></i> My Collection
+      </button>
       <button class="nav-btn cart-btn" onclick="openCart()">
-        <i class="ti ti-shopping-bag" style="font-size:16px;"></i> Cart
+        <i class="ti ti-shopping-bag" style="font-size:16px;"></i> <span data-i18n="gallery.btn_cart">Cart</span>
         <span class="cbadge" id="cbadge">0</span>
       </button>
-      <button class="nav-btn filled" id="anb" onclick="authNav()">Sign In</button>
+      <button class="nav-btn filled" id="anb" onclick="authNav()" data-i18n="gallery.btn_signin">Sign In</button>
     </div>
   </div>
 </header>
 
+<!-- ── Active category strip (shown when a category is selected) ──────── -->
+<div class="cat-active-strip" id="catActiveStrip">
+  <div class="cat-active-inner">
+    <span style="color:var(--ink-3);font-size:12px;">Showing:</span>
+    <div class="cat-pill" id="catPill">
+      <i class="ti ti-tag" aria-hidden="true" style="font-size:13px;"></i>
+      <span id="catPillLabel"></span>
+      <button class="cat-pill-clear" onclick="clearCategory()" aria-label="Clear category filter"><i class="ti ti-x" style="font-size:12px;"></i></button>
+    </div>
+  </div>
+</div>
+
 <div class="hero">
   <div class="hero-overlay">
-    <div class="hero-badge"><i class="ti ti-sparkles" style="font-size:12px;"></i> Fine Art Prints</div>
-    <div class="hero-title">Bring the World's Best Photography Into Your Home</div>
-    <div class="hero-sub">Museum-quality prints from independent photographers, shipped worldwide.</div>
+    <div class="hero-badge"><i class="ti ti-sparkles" style="font-size:12px;"></i> <span data-i18n="gallery.hero_badge">CURATED COLLECTION</span></div>
+    <div class="hero-title" data-i18n="gallery.hero_title">Fine Art Prints</div>
+    <div class="hero-sub" data-i18n="gallery.hero_sub">Discover and collect unique photographic art from talented photographers around the world.</div>
     <div class="hero-actions">
-      <button class="hbtn p" onclick="document.getElementById('gal').scrollIntoView({behavior:'smooth'})"><i class="ti ti-photo"></i> Browse Gallery</button>
+      <button class="hbtn p" onclick="document.getElementById('gal').scrollIntoView({behavior:'smooth'})"><i class="ti ti-photo"></i> <span data-i18n="gallery.hero_browse">Browse Collection</span></button>
     </div>
   </div>
 </div>
 
 <!-- ── Photographer bio strip ───────────────────────────────────────────── -->
 
+<!-- ── Series browse ───────────────────────────────────────────────────── -->
+<div class="page">
+  <div class="section" id="seriesSection" style="display:none">
+    <div class="sec-top" style="align-items:center">
+      <div class="sec-title">Series &amp; Essays</div>
+      <button class="map-toggle active" onclick="toggleSeriesSection()" style="margin-left:auto">
+        <i class="ti ti-x"></i> Close
+      </button>
+    </div>
+    <div class="series-browse-grid" id="seriesBrowseGrid">
+      <div style="color:rgba(255,255,255,.4);font-size:13px">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- Series detail modal -->
+<div id="seriesDetailModal">
+  <div class="sdm-box">
+    <div class="sdm-header">
+      <button class="sdm-close" onclick="closeSeriesDetail()"><i class="ti ti-x"></i></button>
+      <div class="sdm-title" id="sdmTitle"></div>
+      <div class="sdm-desc" id="sdmDesc"></div>
+      <div class="sdm-meta" id="sdmMeta"></div>
+    </div>
+    <div class="sdm-strip" id="sdmStrip"></div>
+  </div>
+</div>
+
 <div class="page">
   <div class="section" id="gal">
     <div class="sec-top">
       <div class="sec-title" id="gtitle">Browse All</div>
       <span id="gcnt" style="font-size:13px;color:var(--ink-3);"></span>
+      <button class="map-toggle" id="seriesToggleBtn" onclick="toggleSeriesSection()">
+        <i class="ti ti-books"></i> Series
+      </button>
+      <button class="map-toggle" id="mapToggleBtn" onclick="toggleMapView()">
+        <i class="ti ti-map-pin"></i> Map
+      </button>
+    </div>
+    <!-- Map view (Leaflet.js — only initialised when first opened) -->
+    <div id="mapView">
+      <div id="mapLeaflet"></div>
+    </div>
+    <!-- Color mood filter strip -->
+    <div class="color-filter" id="colorFilter">
+      <button class="cf-btn active" data-mood="" onclick="setColorMood('')">
+        <span class="cf-swatch" style="background:linear-gradient(135deg,#e84393,#f4a500,#2d6a4f,#1a6db5)"></span> All
+      </button>
+      <button class="cf-btn" data-mood="warm" onclick="setColorMood('warm')">
+        <span class="cf-swatch" style="background:#e87c3e"></span> Warm
+      </button>
+      <button class="cf-btn" data-mood="cool" onclick="setColorMood('cool')">
+        <span class="cf-swatch" style="background:#1a6db5"></span> Cool
+      </button>
+      <button class="cf-btn" data-mood="green" onclick="setColorMood('green')">
+        <span class="cf-swatch" style="background:#2d6a4f"></span> Green
+      </button>
+      <button class="cf-btn" data-mood="purple" onclick="setColorMood('purple')">
+        <span class="cf-swatch" style="background:#7b4fa6"></span> Purple
+      </button>
+      <button class="cf-btn" data-mood="neutral" onclick="setColorMood('neutral')">
+        <span class="cf-swatch" style="background:#9a8c7e"></span> Neutral
+      </button>
+      <button class="cf-btn" data-mood="dark" onclick="setColorMood('dark')">
+        <span class="cf-swatch" style="background:#1a1a1a"></span> Dark
+      </button>
+      <button class="cf-btn" data-mood="light" onclick="setColorMood('light')">
+        <span class="cf-swatch" style="background:#f0ede8;border-color:rgba(0,0,0,.15)"></span> Light
+      </button>
     </div>
     <div class="masonry" id="grid">
       <div class="pc sk" style="height:320px;"></div>
@@ -438,6 +773,7 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
   <div class="fbot"><span>© 2026 Galleria. All rights reserved.</span><span><a class="fl" onclick="openInfo('privacy')" style="cursor:pointer;color:inherit">Privacy</a> · <a class="fl" onclick="openInfo('terms')" style="cursor:pointer;color:inherit">Terms</a> · <a class="fl" onclick="openInfo('cookies')" style="cursor:pointer;color:inherit">Cookie Policy</a></span></div>
 </footer>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
 <script>
 const C = {
@@ -464,7 +800,7 @@ window.onload = () => {
         if (!err && session && session.isValid()) {
           tok = session.getIdToken().getJwtToken();
           CU = cu;
-          document.getElementById('anb').textContent = 'Sign Out';
+          _onSignedIn();
         }
       });
     }
@@ -472,6 +808,29 @@ window.onload = () => {
   loadGallery();
   handleUrlParams();
 };
+
+// ── Image protection ─────────────────────────────────────────────────────────
+// Prevent casual right-click save and drag-to-desktop on gallery images.
+// This is a UX deterrent, not a hard lock — determined users can always
+// use dev-tools or screenshot.  The real protection is the watermark + EXIF.
+(function protectImages() {
+  const PHOTO_SEL = 'img.lbimg, img.pi, img.cthumb';
+  // Block context menu on photo elements only (not the whole page)
+  document.addEventListener('contextmenu', e => {
+    if (e.target.matches(PHOTO_SEL)) e.preventDefault();
+  });
+  // Block drag-start so images can't be dragged to desktop or another tab
+  document.addEventListener('dragstart', e => {
+    if (e.target.matches(PHOTO_SEL)) e.preventDefault();
+  });
+  // Block long-press save on iOS (fires touchstart → contextmenu on img)
+  document.addEventListener('touchstart', e => {
+    if (e.target.matches(PHOTO_SEL)) {
+      e.target.style.webkitUserSelect = 'none';
+      e.target.style.userSelect = 'none';
+    }
+  }, { passive: true });
+})();
 
 // ── URL param handling (success / cancelled returns from Stripe) ──────────
 function handleUrlParams() {
@@ -529,7 +888,26 @@ function dismissSuccess() {
 }
 
 // ── Gallery ───────────────────────────────────────────────────────────────
-let _nextCursor = null, _lastQuery = '';
+let _nextCursor = null, _lastQuery = '', _lastCategory = '', _lastSort = '', _lastColorMood = '';
+
+// Public entry point called by nav dropdowns and clearCategory()
+function loadImages(category, sort) {
+  _lastCategory  = category != null ? category : _lastCategory;
+  _lastSort      = sort     != null ? sort     : _lastSort;
+  _lastQuery     = '';
+  _lastColorMood = '';
+  document.getElementById('si').value = '';
+  document.getElementById('sc').classList.remove('vis');
+  // Reset colour filter UI
+  document.querySelectorAll('.cf-btn').forEach(b => b.classList.toggle('active', b.dataset.mood === ''));
+  loadGallery('', '', null);
+}
+
+function setColorMood(mood) {
+  _lastColorMood = mood;
+  document.querySelectorAll('.cf-btn').forEach(b => b.classList.toggle('active', b.dataset.mood === mood));
+  loadGallery(null, null, null);
+}
 
 async function loadGallery(q, photographerId, cursor) {
   const g = document.getElementById('grid');
@@ -542,13 +920,20 @@ async function loadGallery(q, photographerId, cursor) {
     removePaginationBtn();
   }
   try {
-    let url = C.ApiBase + '/list-images';
+    const isFeed = _lastSort === 'feed';
+    let url = C.ApiBase + (isFeed ? '/feed' : '/list-images');
     const params = new URLSearchParams();
-    if (_lastQuery) params.set('q', _lastQuery);
-    if (photographerId) params.set('photographerId', photographerId);
+    if (!isFeed) {
+      if (_lastQuery) params.set('q', _lastQuery);
+      if (photographerId) params.set('photographerId', photographerId);
+      if (_lastCategory) params.set('category', _lastCategory);
+      if (_lastSort) params.set('sort', _lastSort);
+      if (_lastColorMood) params.set('colorMood', _lastColorMood);
+    }
     if (cursor) params.set('cursor', cursor);
     const qs = params.toString(); if (qs) url += '?' + qs;
-    const r = await fetch(url);
+    const headers = (isFeed && tok) ? {'Authorization': tok} : {};
+    const r = await fetch(url, {headers});
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     // API returns {photos:[...], count:N, nextCursor:...}
@@ -556,6 +941,8 @@ async function loadGallery(q, photographerId, cursor) {
     _nextCursor = Array.isArray(data) ? null : (data.nextCursor || null);
     photos = cursor ? photos.concat(newPhotos) : newPhotos;
     renderGallery(newPhotos, cursor);
+    // Refresh map markers if map is currently open
+    if (document.getElementById('mapView').classList.contains('open')) _renderMap();
   } catch(e) {
     if (!cursor) g.innerHTML = '<div class="sbox"><i class="ti ti-wifi-off"></i><p>Could not load gallery: ' + e.message + '</p></div>';
     else toast('Could not load more photos: ' + e.message);
@@ -569,7 +956,20 @@ function removePaginationBtn() {
 
 function renderGallery(items, append) {
   const q = _lastQuery;
-  document.getElementById('gtitle').textContent = q ? 'Results for "' + q + '"' : 'Browse All';
+  let title = 'Browse All';
+  if (q) title = 'Results for "' + q + '"';
+  else if (_lastCategory) {
+    const cat = (typeof NAV_CATEGORIES !== 'undefined') && NAV_CATEGORIES.find(function(c){return c.slug===_lastCategory;});
+    title = cat ? cat.label : _lastCategory;
+  } else if (_lastSort === 'popular') { title = 'Popular'; }
+  else if (_lastSort === 'new') { title = 'New Arrivals'; }
+  else if (_lastSort === 'editors_choice') { title = "Editor's Choice"; }
+  else if (_lastSort === 'feed') { title = 'Following'; }
+  if (_lastColorMood) {
+    const moodLabel = {warm:'Warm Tones',cool:'Cool Tones',green:'Green Palette',purple:'Purple Palette',neutral:'Neutral',dark:'Dark & Moody',light:'Light & Airy'}[_lastColorMood] || _lastColorMood;
+    title = (title === 'Browse All' ? '' : title + ' · ') + moodLabel;
+  }
+  document.getElementById('gtitle').textContent = title;
   document.getElementById('gcnt').textContent = photos.length ? photos.length + (photos.length !== 1 ? ' prints' : ' print') : '';
   const g = document.getElementById('grid');
   if (!append) g.innerHTML = '';
@@ -611,8 +1011,10 @@ function buildCard(p) {
     +'</div></div></div></div>'
     +'<div class="pfoot"><div class="pname">'+E(title)+'</div>'
     +'<div class="pmeta"><span class="pprice">'+E(fromPrice)+'</span>'
+    +'<div style="display:flex;align-items:center;gap:8px;">'
+    +(p.dominantColors&&p.dominantColors.length?'<div class="pdots">'+p.dominantColors.slice(0,3).map(c=>'<div class="pdot" style="background:'+E(c)+'"></div>').join('')+'</div>':'')
     +'<button class="plike" id="lk-'+E(id)+'" onclick="event.stopPropagation();doLike(\''+E(id)+'\',this)"><i class="ti ti-heart"></i> <span class="lc">'+lk+'</span></button>'
-    +'</div></div>';
+    +'</div></div></div>';
   d.addEventListener('click', () => openLB(p));
   return d;
 }
@@ -719,8 +1121,89 @@ function openLB(p) {
     likeBtn.innerHTML = '<i class="ti ti-heart"></i> Like';
   }
   document.getElementById('lb').classList.add('open');
+  // Ambient glow: radial bloom using the photo's dominant colour
+  _setAmbient(p.dominantColors && p.dominantColors[0]);
+  // Voice note: show player if this photo has an audio story
+  const audioWrap = document.getElementById('lb-audio-wrap');
+  const audioEl   = document.getElementById('lb-audio-el');
+  if (p.audioStoryUrl && audioWrap && audioEl) {
+    audioEl.src = p.audioStoryUrl;
+    audioWrap.style.display = '';
+  } else if (audioWrap) {
+    audioWrap.style.display = 'none';
+    if (audioEl) { audioEl.src = ''; audioEl.pause(); }
+  }
+  // Load similar photos asynchronously — don't block lightbox open
+  loadSimilar(p.photoId);
+  // Follow button state
+  if (p.photographerId) _updateFollowBtn(p.photographerId);
 }
-function closeLB() { document.getElementById('lb').classList.remove('open'); lbPhoto = null; }
+function closeLB() {
+  document.getElementById('lb').classList.remove('open');
+  document.getElementById('lb-similar').style.display = 'none';
+  document.getElementById('lbWall').classList.remove('open');
+  _setAmbient(null);
+  const _ae = document.getElementById('lb-audio-el');
+  if (_ae) { _ae.pause(); _ae.src = ''; }
+  const _aw = document.getElementById('lb-audio-wrap');
+  if (_aw) _aw.style.display = 'none';
+  lbPhoto = null;
+}
+
+function _setAmbient(hex) {
+  const el = document.getElementById('lbAmbient');
+  if (!el) return;
+  if (!hex) {
+    el.style.background = 'none';
+    return;
+  }
+  // Radial bloom: color at ~30% opacity centered, fading to transparent
+  // The .lb backdrop stays #000/.92 — this layer sits on top and just adds a glow
+  el.style.background =
+    `radial-gradient(ellipse 70% 55% at 50% 42%, ${hex}55 0%, ${hex}22 40%, transparent 75%)`;
+}
+
+// ── pHash similarity strip ─────────────────────────────────────────────────
+// AWS Cert Note (DVA-C02): Hamming distance on 64-bit perceptual hashes.
+// Distance ≤ 10 = perceptually similar; computed server-side in the
+// SimilarPhotosFunction Lambda, ranked by ascending distance.
+async function loadSimilar(photoId) {
+  const strip  = document.getElementById('lb-similar');
+  const row    = document.getElementById('lb-similar-row');
+  strip.style.display = 'none';
+  row.innerHTML = '';
+  try {
+    const r = await fetch(CONFIG.ApiBase + '/photos/similar?photoId=' + encodeURIComponent(photoId) + '&limit=6');
+    if (!r.ok) return;
+    const data = await r.json();
+    const photos = data.photos || [];
+    if (!photos.length) return;
+    row.innerHTML = photos.map(p =>
+      `<img class="lb-sim-thumb" src="${p.thumbnailUrl||''}" alt="${p.title||''}"
+            title="${p.title||'Untitled'} (distance ${p.hammingDistance})"
+            loading="lazy"
+            onerror="this.style.display='none'"
+            onclick="_openSimilar(${JSON.stringify(p).replace(/"/g,'&quot;')})">`
+    ).join('');
+    strip.style.display = '';
+  } catch(e) {
+    // Fail silently — similar strip is non-critical
+  }
+}
+
+async function _openSimilar(simPhoto) {
+  // Fetch the full photo record so we have previewUrl, then open lightbox
+  try {
+    const r = await fetch(CONFIG.ApiBase + '/list-images?photographerId=' + encodeURIComponent(simPhoto.photographerId || ''));
+    if (r.ok) {
+      const data = await r.json();
+      const full = (data.photos || []).find(p => p.photoId === simPhoto.photoId);
+      if (full) { openLB(full); return; }
+    }
+  } catch(e) {}
+  // Fallback: open with whatever we have
+  openLB({...simPhoto, previewUrl: simPhoto.thumbnailUrl});
+}
 document.getElementById('lb').addEventListener('click', e => { if (e.target === e.currentTarget) closeLB(); });
 function lbLike() {
   if (!lbPhoto) return;
@@ -748,6 +1231,8 @@ async function lbViewProfile() {
   document.getElementById('lb-bio-location').textContent = lbPhoto.photographerLocation || '';
   document.getElementById('lb-bio-text').textContent = lbPhoto.photographerBio || 'Independent photographer sharing their work on Galleria.';
   bioPanel.classList.add('open');
+  if (lbPhoto.photographerId) _updateFollowBtn(lbPhoto.photographerId);
+  else document.getElementById('lb-follow-btn').style.display = 'none';
   // Try to fetch richer profile data in the background
   if (lbPhoto.photographerId) {
     try {
@@ -764,6 +1249,190 @@ async function lbViewProfile() {
 }
 function closeBio() {
   document.getElementById('lb-bio').classList.remove('open');
+}
+
+// ── Follow / feed ─────────────────────────────────────────────────────────
+let _followingSet = new Set();  // photographerIds the current customer follows
+let _followingLoaded = false;
+
+async function loadFollowingSet() {
+  if (!tok || _followingLoaded) return;
+  try {
+    const r = await fetch(C.ApiBase + '/follow', {headers: {'Authorization': tok}});
+    if (r.ok) {
+      const d = await r.json();
+      _followingSet = new Set(d.following || []);
+      _followingLoaded = true;
+    }
+  } catch(e) { /* silently ignore — follow state is non-critical */ }
+}
+
+function _updateFollowBtn(photographerId) {
+  const btn   = document.getElementById('lb-follow-btn');
+  const icon  = document.getElementById('lb-follow-icon');
+  const label = document.getElementById('lb-follow-label');
+  if (!btn) return;
+  if (!tok) { btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  const isFollowing = _followingSet.has(photographerId);
+  btn.classList.toggle('following', isFollowing);
+  icon.className  = isFollowing ? 'ti ti-user-check' : 'ti ti-user-plus';
+  label.textContent = isFollowing ? 'Following' : 'Follow';
+}
+
+async function toggleFollow() {
+  if (!lbPhoto || !lbPhoto.photographerId) return;
+  if (!tok) { openMod(); return; }
+  const pid = lbPhoto.photographerId;
+  const wasFollowing = _followingSet.has(pid);
+  // Optimistic update
+  if (wasFollowing) { _followingSet.delete(pid); } else { _followingSet.add(pid); }
+  _updateFollowBtn(pid);
+  try {
+    let r;
+    if (wasFollowing) {
+      r = await fetch(C.ApiBase + '/follow/' + encodeURIComponent(pid),
+        {method: 'DELETE', headers: {'Authorization': tok}});
+    } else {
+      r = await fetch(C.ApiBase + '/follow',
+        {method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': tok},
+         body: JSON.stringify({photographerId: pid})});
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    toast(wasFollowing ? 'Unfollowed' : 'Now following ' + (lbPhoto.photographerName || 'photographer'));
+  } catch(e) {
+    // Roll back optimistic update on failure
+    if (wasFollowing) { _followingSet.add(pid); } else { _followingSet.delete(pid); }
+    _updateFollowBtn(pid);
+    toast('Could not update follow — please try again');
+  }
+}
+
+async function navSelectFeed() {
+  if (_openNav) { navToggle(_openNav); }
+  _lastCategory = '';
+  _lastSort = 'feed';
+  _lastQuery = '';
+  _nextCursor = null;
+  if (!tok) { openMod(); return; }
+  await loadFollowingSet();
+  const ids = [..._followingSet];
+  if (!ids.length) {
+    document.getElementById('gtitle').textContent = 'Following';
+    document.getElementById('gcnt').textContent = '';
+    document.getElementById('grid').innerHTML = '<div class="sbox"><i class="ti ti-users"></i><p>Follow some photographers to see their latest work here.</p></div>';
+    return;
+  }
+  loadGallery('', '', null);
+}
+
+function _onSignedIn() {
+  document.getElementById('anb').textContent = 'Sign Out';
+  const cb = document.getElementById('colBtn'); if(cb) cb.style.display = '';
+  document.getElementById('nav-dd-following').style.display = '';
+  document.getElementById('nav-dd-following-soon').style.display = 'none';
+  loadFollowingSet();
+}
+
+function _onSignedOut() {
+  tok = ''; CU = null;
+  const cb = document.getElementById('colBtn'); if(cb) cb.style.display = 'none';
+  closeMyCollection();
+  _followingSet = new Set(); _followingLoaded = false;
+  document.getElementById('anb').textContent = 'Sign In';
+  document.getElementById('nav-dd-following').style.display = 'none';
+  document.getElementById('nav-dd-following-soon').style.display = '';
+}
+
+// ── Auth modal functions ──────────────────────────────────────────────────
+function setSt(msg, type) {
+  const el = document.getElementById('ast');
+  el.textContent = msg;
+  el.style.color = type === 'err' ? 'var(--red, #c33)' : 'var(--green, #22c55e)';
+}
+
+function switchTab(t) {
+  tab = t;
+  const isForgot = t === 'forgot' || t === 'reset';
+  document.getElementById('t1').classList.toggle('active', t === 'in');
+  document.getElementById('t2').classList.toggle('active', t === 'reg');
+  document.getElementById('an').style.display = t === 'reg' ? '' : 'none';
+  document.getElementById('fp-link').style.display = t === 'in' ? '' : 'none';
+  document.getElementById('auth-fields').style.display = isForgot ? 'none' : '';
+  document.getElementById('forgot-fields').style.display = t === 'forgot' ? '' : 'none';
+  document.getElementById('reset-fields').style.display = t === 'reset' ? '' : 'none';
+  const btn = document.getElementById('as');
+  btn.textContent = t === 'reg' ? 'Create Account' : 'Sign In';
+  setSt('', '');
+}
+
+function doAuth() {
+  if (!UP) { setSt('Auth not available', 'err'); return; }
+  const email = (document.getElementById('ae').value || '').trim();
+  const pass  = (document.getElementById('ap').value || '').trim();
+  if (!email || !pass) { setSt('Please enter your email and password.', 'err'); return; }
+  const btn = document.getElementById('as');
+  btn.disabled = true; btn.textContent = '…';
+  setSt('', '');
+
+  if (tab === 'reg') {
+    const name = (document.getElementById('an').value || '').trim();
+    const attrList = name ? [new AmazonCognitoIdentity.CognitoUserAttribute({Name:'name', Value:name})] : [];
+    UP.signUp(email, pass, attrList, null, (err, result) => {
+      btn.disabled = false; btn.textContent = 'Create Account';
+      if (err) { setSt(err.message || 'Sign up failed', 'err'); return; }
+      setSt('Account created! Please check your email to verify.', 'ok');
+    });
+  } else {
+    const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({Username: email, Password: pass});
+    CU = new AmazonCognitoIdentity.CognitoUser({Username: email, Pool: UP});
+    CU.authenticateUser(authDetails, {
+      onSuccess(session) {
+        btn.disabled = false; btn.textContent = 'Sign In';
+        tok = session.getIdToken().getJwtToken();
+        _onSignedIn();
+        closeMod();
+        toast('Welcome back!');
+      },
+      onFailure(err) {
+        btn.disabled = false; btn.textContent = 'Sign In';
+        setSt(err.message || 'Sign in failed', 'err');
+      },
+      newPasswordRequired() {
+        btn.disabled = false; btn.textContent = 'Sign In';
+        setSt('Password reset required — please contact support.', 'err');
+      },
+    });
+  }
+}
+
+function sendResetCode() {
+  if (!UP) return;
+  const email = (document.getElementById('fp-email').value || '').trim();
+  if (!email) { setSt('Please enter your email address.', 'err'); return; }
+  const btn = document.getElementById('fp-send');
+  btn.disabled = true; btn.textContent = '…';
+  const cu = new AmazonCognitoIdentity.CognitoUser({Username: email, Pool: UP});
+  cu.forgotPassword({
+    onSuccess() { btn.disabled = false; btn.textContent = 'Send Reset Code'; switchTab('reset'); setSt('Code sent — check your email.', 'ok'); },
+    onFailure(err) { btn.disabled = false; btn.textContent = 'Send Reset Code'; setSt(err.message || 'Failed to send code', 'err'); },
+  });
+  // Store user ref for confirmReset
+  window._resetUser = cu;
+}
+
+function confirmReset() {
+  const code    = (document.getElementById('fp-code').value || '').trim();
+  const newpass = (document.getElementById('fp-newpass').value || '').trim();
+  if (!code || !newpass) { setSt('Please enter the code and new password.', 'err'); return; }
+  const btn = document.getElementById('fp-confirm');
+  btn.disabled = true; btn.textContent = '…';
+  const cu = window._resetUser;
+  if (!cu) { setSt('Session expired — please start again.', 'err'); btn.disabled = false; btn.textContent = 'Confirm New Password'; return; }
+  cu.confirmPassword(code, newpass, {
+    onSuccess() { btn.disabled = false; btn.textContent = 'Confirm New Password'; switchTab('in'); setSt('Password reset! You can now sign in.', 'ok'); },
+    onFailure(err) { btn.disabled = false; btn.textContent = 'Confirm New Password'; setSt(err.message || 'Reset failed', 'err'); },
+  });
 }
 
 // ── Purchase modal ────────────────────────────────────────────────────────
@@ -1091,6 +1760,10 @@ async function loadProfile() {
 function openProfileModal() {
   document.getElementById('prm').classList.add('open');
 }
+
+function openProfileModal() {
+  document.getElementById('prm').classList.add('open');
+}
 function closeProfileModal() {
   document.getElementById('prm').classList.remove('open');
 }
@@ -1101,6 +1774,322 @@ let tt;
 function toast(m) { const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'),2800); }
 function E(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 document.addEventListener('keydown', e => { if (e.key==='Escape'){closeBio();closeLB();closeMod();closeCart();closePurchase();closeProfileModal();closeInfo();} });
+
+// ── Map browse (Leaflet.js) ───────────────────────────────────────────────────
+let _mapInitialised = false, _leafletMap = null, _mapMarkers = [];
+
+function toggleMapView() {
+  const view = document.getElementById('mapView');
+  const btn  = document.getElementById('mapToggleBtn');
+  const isOpen = view.classList.contains('open');
+  view.classList.toggle('open', !isOpen);
+  btn.classList.toggle('active', !isOpen);
+  if (!isOpen) _renderMap();
+}
+
+function _renderMap() {
+  const geoPhotos = photos.filter(p => p.gpsLat != null && p.gpsLng != null);
+  const container = document.getElementById('mapLeaflet');
+  if (!geoPhotos.length) {
+    container.innerHTML = '<div class="map-no-gps"><i class="ti ti-map-off" style="font-size:36px;display:block;margin-bottom:12px;opacity:.4"></i>No geotagged photos in this set.<br>GPS data is extracted automatically from JPEG EXIF when photos are uploaded.</div>';
+    return;
+  }
+  container.innerHTML = '';   // clear any previous "no GPS" message
+
+  if (!_mapInitialised) {
+    // AWS Cert Note (SAA-C03 / DVA-C02): Leaflet tiles are served by OpenStreetMap
+    // CDN -- zero AWS cost.  Markers use already-cached CloudFront thumbnail URLs.
+    _leafletMap = L.map('mapLeaflet');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 18,
+    }).addTo(_leafletMap);
+    _mapInitialised = true;
+  }
+
+  // Remove old markers
+  _mapMarkers.forEach(m => m.remove());
+  _mapMarkers = [];
+
+  const bounds = [];
+  geoPhotos.forEach(p => {
+    const lat = parseFloat(p.gpsLat), lng = parseFloat(p.gpsLng);
+    bounds.push([lat, lng]);
+
+    const icon = L.divIcon({
+      html: `<img class="lf-marker" src="${p.thumbnailUrl}" alt="" onerror="this.style.background='#ccc'">`,
+      className: '',
+      iconSize: [54, 54],
+      iconAnchor: [27, 27],
+      popupAnchor: [0, -30],
+    });
+
+    const marker = L.marker([lat, lng], {icon}).addTo(_leafletMap);
+    const title = p.aiTitle || p.title || p.fileName || 'Untitled';
+    marker.bindPopup(
+      '<div style="text-align:center;min-width:120px">' +
+      '<img src="' + p.thumbnailUrl + '" style="width:100px;height:70px;object-fit:cover;border-radius:5px;display:block;margin:0 auto 6px">' +
+      '<div style="font-size:12px;font-weight:500;margin-bottom:6px">' + title + '</div>' +
+      '<button onclick="document.getElementById(\'mapView\').classList.remove(\'open\');document.getElementById(\'mapToggleBtn\').classList.remove(\'active\');openLB(window._mapPhotoRef[\'' + p.photoId + '\'])" ' +
+      'style="padding:5px 12px;background:#111;color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer">View</button>' +
+      '</div>', {maxWidth: 160}
+    );
+    _mapMarkers.push(marker);
+  });
+
+  // Store photo refs by photoId for popup button access
+  window._mapPhotoRef = window._mapPhotoRef || {};
+  geoPhotos.forEach(p => { window._mapPhotoRef[p.photoId] = p; });
+
+  // Fit map to all markers with padding
+  _leafletMap.fitBounds(bounds, {padding: [40, 40], maxZoom: 12});
+}
+
+
+// ── Wall mockup preview ───────────────────────────────────────────────────────
+const WALL_SIZES = {
+  s: { w: 140, h: 175, mat: 10, label: 'Small (Web) — up to 1,000 px' },
+  m: { w: 220, h: 275, mat: 16, label: 'Medium — 16×20 in print' },
+  l: { w: 320, h: 400, mat: 22, label: 'Large (Pro) — full resolution' },
+};
+let _wallSize = 'm';
+
+function openWallPreview() {
+  if (!lbPhoto) return;
+  const wall = document.getElementById('lbWall');
+  const img  = document.getElementById('lbWallImg');
+  img.src = lbPhoto.previewUrl || lbPhoto.thumbnailUrl || '';
+  _applyWallSize(_wallSize);
+  wall.classList.add('open');
+}
+
+function closeWallPreview() {
+  document.getElementById('lbWall').classList.remove('open');
+}
+
+function setWallSize(sz) {
+  _wallSize = sz;
+  document.querySelectorAll('.lb-wsz').forEach(b => b.classList.toggle('active', b.dataset.sz === sz));
+  _applyWallSize(sz);
+  label.textContent = cfg.label;
+}
+
+
+
+/* ===== Series browse (customer) =====
+ * Fetches all photographer series. Each series card shows the cover thumbnail.
+ * Clicking a card opens a detail modal with all photos in order.
+ * AWS Cert Note (SAA-C03): API is GET /series?photographerId=xxx — no auth header
+ * needed for public listing (Lambda returns series with status-filtered photos).
+ */
+
+let _seriesOpen = false;
+let _seriesCache = null;   // cached list to avoid repeat fetches on toggle
+
+async function toggleSeriesSection() {
+  const sec = document.getElementById('seriesSection');
+  const btn = document.getElementById('seriesToggleBtn');
+  _seriesOpen = !_seriesOpen;
+  sec.style.display = _seriesOpen ? '' : 'none';
+  if (btn) btn.classList.toggle('active', _seriesOpen);
+  if (_seriesOpen && !_seriesCache) await _loadSeriesBrowse();
+}
+
+async function _loadSeriesBrowse() {
+  const grid = document.getElementById('seriesBrowseGrid');
+  if (!grid) return;
+  grid.innerHTML = '<div style="color:rgba(255,255,255,.4);font-size:13px">Loading…</div>';
+  try {
+    // Get all series — public endpoint, no auth needed
+    // Determine photographerId from the page config if set, else list from gallery
+    const r = await fetch(CONFIG.ApiBase + '/series?' + new URLSearchParams({photographerId: CONFIG.PhotographerId||''}));
+    if (!r.ok) throw new Error(await r.text());
+    const { series } = await r.json();
+    _seriesCache = series || [];
+    if (!_seriesCache.length) {
+      grid.innerHTML = '<div style="color:rgba(255,255,255,.4);font-size:13px;padding:20px 0">No series published yet.</div>';
+      return;
+    }
+    grid.innerHTML = _seriesCache.map(s => `
+      <div class="sbcard" onclick="openSeriesDetail('${s.seriesId}')">
+        <div class="sbcard-cover">
+          ${s.coverPhotoId ? `<img src="" data-sbcover="${s.seriesId}" alt="">` : `<div class="sbcard-cover-empty"><i class="ti ti-photos"></i></div>`}
+        </div>
+        <div class="sbcard-info">
+          <div class="sbcard-title">${_sbEsc(s.title)}</div>
+          <div class="sbcard-meta">${s.photoCount} photo${s.photoCount!==1?'s':''}</div>
+          ${s.description ? `<div class="sbcard-desc">${_sbEsc(s.description)}</div>` : ''}
+        </div>
+      </div>`).join('');
+    // lazy-load cover images
+    _loadSbCovers();
+  } catch (e) {
+    grid.innerHTML = `<div style="color:rgba(231,76,60,.8);font-size:13px">${e.message}</div>`;
+  }
+}
+
+async function _loadSbCovers() {
+  document.querySelectorAll('[data-sbcover]').forEach(async img => {
+    const sid    = img.dataset.sbcover;
+    const series = (_seriesCache || []).find(s => s.seriesId === sid);
+    if (!series) return;
+    // Fetch one series to get cover thumbnail URL
+    try {
+      const r = await fetch(`${CONFIG.ApiBase}/series?seriesId=${encodeURIComponent(sid)}`);
+      if (!r.ok) return;
+      const data = await r.json();
+      const photos = data.photos || [];
+      const cover  = photos.find(p => p.photoId === data.coverPhotoId) || photos[0];
+      if (cover && cover.thumbnailUrl) {
+        img.src     = cover.thumbnailUrl;
+        img.onerror = () => img.style.display = 'none';
+      }
+    } catch { /* ignore */ }
+  });
+}
+
+async function openSeriesDetail(seriesId) {
+  const modal = document.getElementById('seriesDetailModal');
+  document.getElementById('sdmTitle').textContent = 'Loading…';
+  document.getElementById('sdmDesc').textContent  = '';
+  document.getElementById('sdmMeta').textContent  = '';
+  document.getElementById('sdmStrip').innerHTML   = '';
+  modal.classList.add('open');
+  try {
+    const r = await fetch(`${CONFIG.ApiBase}/series?seriesId=${encodeURIComponent(seriesId)}`);
+    if (!r.ok) throw new Error(await r.text());
+    const data   = await r.json();
+    const photos = data.photos || [];
+    document.getElementById('sdmTitle').textContent = data.title || 'Series';
+    document.getElementById('sdmDesc').textContent  = data.description || '';
+    document.getElementById('sdmMeta').textContent  = `${photos.length} photo${photos.length!==1?'s':''} · ${_sbFmtDate(data.createdAt)}`;
+    if (!photos.length) {
+      document.getElementById('sdmStrip').innerHTML = '<div class="sdm-empty">No photos in this series yet.</div>';
+      return;
+    }
+    document.getElementById('sdmStrip').innerHTML = photos.map((p, i) => `
+      <div class="sdm-photo" onclick="closeSeriesDetail();openLB(${JSON.stringify(p)})">
+        <img src="${p.thumbnailUrl||''}" alt="${_sbEsc(p.title||'')}">
+        <div class="sdm-photo-num">${i+1}</div>
+      </div>`).join('');
+  } catch (e) {
+    document.getElementById('sdmStrip').innerHTML = `<div class="sdm-empty" style="color:rgba(231,76,60,.8)">${e.message}</div>`;
+  }
+}
+
+function closeSeriesDetail() {
+  document.getElementById('seriesDetailModal').classList.remove('open');
+}
+
+function _sbEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _sbFmtDate(iso) { try { return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch { return ''; } }
+
+// Close series detail on Escape (already handled globally, but defensive)
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeSeriesDetail();
+});
+
+
+
+/* ===== My Collection — buyer's purchased photos =====
+ * AWS Cert Note (SAA-C03): CollectionsTable uses (buyerId PK, photoId SK) —
+ * a single DynamoDB Query on buyerId returns the entire collection in O(n).
+ * Re-download URLs are presigned 15-minute S3 GET URLs generated per-request.
+ */
+
+let _colLoaded = false;
+
+async function openMyCollection() {
+  if (!tok) { authNav(); return; }
+  document.getElementById('collectionModal').classList.add('open');
+  if (!_colLoaded) await _loadCollection();
+}
+
+function closeMyCollection() {
+  document.getElementById('collectionModal').classList.remove('open');
+}
+
+async function _loadCollection() {
+  const grid = document.getElementById('colGrid');
+  const meta = document.getElementById('colHeaderMeta');
+  grid.innerHTML = '<div class="col-loading"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Loading your collection…</div>';
+  try {
+    const r = await fetch(CONFIG.ApiBase + '/my-collection', {
+      headers: { Authorization: tok },
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const { photos, count } = await r.json();
+    _colLoaded = true;
+    if (meta) meta.textContent = count === 0 ? 'No purchases yet' : `${count} photo${count!==1?'s':''} purchased`;
+    if (!photos || !photos.length) {
+      grid.innerHTML = '<div class="col-empty"><i class="ti ti-shopping-bag" style="font-size:32px;display:block;margin-bottom:12px;opacity:.4"></i>You haven't purchased any photos yet.<br><br>Browse the gallery and click <strong>Add to Cart</strong> to get started.</div>';
+      return;
+    }
+    grid.innerHTML = photos.map(p => _colCard(p)).join('');
+  } catch (e) {
+    grid.innerHTML = `<div class="col-empty" style="color:rgba(231,76,60,.8)">${e.message}</div>`;
+  }
+}
+
+function _colCard(p) {
+  const TIER_LABEL = { small: 'Web (72 DPI)', medium: 'Print (150 DPI)', large: 'Pro (Full)' };
+  const tier_label = TIER_LABEL[p.tier] || p.tier;
+  const date = p.purchasedAt ? new Date(parseInt(p.purchasedAt)*1000||p.purchasedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+  return `<div class="col-card">
+    <div class="col-thumb">
+      ${p.thumbnailUrl
+        ? `<img src="${p.thumbnailUrl}" alt="${_sbEsc(p.title||'')}" loading="lazy">`
+        : `<div class="col-thumb-empty"><i class="ti ti-photo"></i></div>`}
+    </div>
+    <div class="col-info">
+      <div class="col-title">${_sbEsc(p.title||p.photoId)}</div>
+      <div class="col-sub">${p.photographerName ? _sbEsc(p.photographerName) + ' · ' : ''}${date}</div>
+      <span class="col-tier"><i class="ti ti-license"></i> ${_sbEsc(tier_label)}</span>
+      ${p.redownloadUrl
+        ? `<button class="col-dl-btn" onclick="_colDownload('${p.redownloadUrl}','${_sbEsc(p.title||p.photoId)}')">
+             <i class="ti ti-download"></i> Re-download
+           </button>`
+        : `<button class="col-dl-btn" onclick="_colFreshDownload('${p.photoId}','${p.tier}')" style="opacity:.65">
+             <i class="ti ti-refresh"></i> Get new link
+           </button>`}
+    </div>
+  </div>`;
+}
+
+function _colDownload(url, title) {
+  const a = document.createElement('a');
+  a.href = url; a.download = title; a.target = '_blank';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+async function _colFreshDownload(photoId, tier) {
+  // Re-fetch a fresh presigned URL by hitting the collection endpoint again
+  try {
+    const r = await fetch(CONFIG.ApiBase + '/my-collection', { headers: { Authorization: tok } });
+    if (!r.ok) throw new Error(await r.text());
+    const { photos } = await r.json();
+    const p = (photos || []).find(x => x.photoId === photoId && x.tier === tier);
+    if (p && p.redownloadUrl) _colDownload(p.redownloadUrl, p.title || photoId);
+    else toast('Download link unavailable — contact support.');
+  } catch (e) {
+    toast('Error: ' + e.message);
+  }
+}
+
 </script>
+
+<!-- My Collection modal -->
+<div id="collectionModal">
+  <div class="col-box">
+    <div class="col-header">
+      <div>
+        <div class="col-header-title"><i class="ti ti-photo-heart"></i> My Collection</div>
+        <div class="col-header-meta" id="colHeaderMeta">Your purchased photos</div>
+      </div>
+      <button class="col-close" onclick="closeMyCollection()"><i class="ti ti-x"></i></button>
+    </div>
+    <div id="colGrid" class="col-grid"></div>
+  </div>
+</div>
 </body>
 </html>

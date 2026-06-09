@@ -16,6 +16,9 @@ import boto3
 import json
 import os
 
+from aws_xray_sdk.core import patch_all, xray_recorder
+patch_all()
+
 dynamodb = boto3.resource("dynamodb")
 
 METADATA_TABLE = os.environ["METADATA_TABLE"]
@@ -29,7 +32,7 @@ CORS_HEADERS = {
 
 def handler(event, context):
     try:
-        body = json.loads(event.get("body") or "{}")
+        body     = json.loads(event.get("body") or "{}")
         photo_id = body.get("photoId", "").strip()
 
         if not photo_id:
@@ -50,6 +53,7 @@ def handler(event, context):
         )
 
         new_likes = int(response["Attributes"]["likes"])
+        _annotate(photoId=photo_id, newLikes=str(new_likes))
         print(f"Like recorded: photoId={photo_id}, likes={new_likes}")
 
         return {
@@ -58,7 +62,7 @@ def handler(event, context):
             "body": json.dumps({"photoId": photo_id, "likes": new_likes}),
         }
 
-    except table.meta.client.exceptions.ConditionalCheckFailedException:
+    except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
         return {
             "statusCode": 404,
             "headers": CORS_HEADERS,
@@ -71,3 +75,13 @@ def handler(event, context):
             "headers": CORS_HEADERS,
             "body": json.dumps({"error": "Internal server error"}),
         }
+
+
+def _annotate(**kwargs):
+    try:
+        seg = xray_recorder.current_subsegment() or xray_recorder.current_segment()
+        if seg:
+            for k, v in kwargs.items():
+                seg.put_annotation(k, str(v))
+    except Exception:
+        pass

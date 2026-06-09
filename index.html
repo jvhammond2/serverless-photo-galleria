@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Galleria — Studio Portal</title>
+<script src="i18n.js" defer></script>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -13,7 +14,7 @@
 :root{
   --bg:#080808;--bg-sidebar:#0D0D0D;--bg-card:#141414;--bg-surface:#1B1B1B;
   --bg-input:#181818;--border:#242424;--border-hi:#343434;
-  --gold:#C8972A;--gold-dim:rgba(200,151,42,0.10);--gold-hi:#D4A840;
+  --gold:#5EAD82;--gold-dim:rgba(94,173,130,0.10);--gold-hi:#4D9A70;
   --text-1:#EEEBE6;--text-2:#888;--text-3:#666666;
   --green:#22C55E;--red:#EF4444;
   --sidebar-w:228px;--top-h:54px;
@@ -70,11 +71,11 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 .nav-roadmap-items.open{max-height:300px;}
 .roadmap-item{display:flex;align-items:center;gap:9px;padding:6px 10px 6px 28px;border-radius:7px;color:var(--text-3);font-size:12.5px;margin-bottom:1px;cursor:default;}
 .roadmap-item i{font-size:16px;width:18px;text-align:center;flex-shrink:0;}
-.roadmap-badge{margin-left:auto;font-size:9px;font-weight:600;padding:2px 6px;border-radius:8px;background:rgba(200,151,42,.15);color:var(--gold);letter-spacing:.3px;}
+.roadmap-badge{margin-left:auto;font-size:9px;font-weight:600;padding:2px 6px;border-radius:8px;background:rgba(94,173,130,.15);color:var(--gold);letter-spacing:.3px;}
 .sidebar-footer{padding:12px 10px;border-top:1px solid var(--border);}
 .user-row{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;cursor:pointer;}
 .user-row:hover{background:rgba(255,255,255,.04);}
-.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--gold),#7A5610);
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--gold),#2E7A57);
   display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#080808;flex-shrink:0;}
 .user-name{font-size:13px;font-weight:500;}
 .user-plan{font-size:11px;color:var(--text-2);}
@@ -145,6 +146,13 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 .toggle.on .toggle-thumb{transform:translateX(16px);}
 .edition-label{font-size:13px;font-weight:500;}
 .edition-hint{font-size:11.5px;color:var(--text-2);margin-top:2px;}
+.cat-row{display:flex;align-items:center;gap:14px;background:var(--bg-surface);
+  border:1px solid var(--border);border-radius:8px;padding:13px 15px;margin-top:10px;}
+.cat-row-label{font-size:13px;font-weight:500;flex-shrink:0;}
+.cat-select{flex:1;background:var(--bg-card);border:1.5px solid var(--border);border-radius:7px;
+  color:var(--text-1);font-size:13px;font-family:inherit;padding:7px 10px;cursor:pointer;}
+.cat-select:focus{outline:none;border-color:var(--gold);}
+.cat-select option{background:var(--bg-card);color:var(--text-1);}
 .action-bar{display:flex;align-items:center;justify-content:flex-end;gap:10px;
   background:var(--bg-card);border-top:1px solid var(--border);padding:14px 24px;flex-shrink:0;}
 .upload-status{font-size:12.5px;color:var(--text-2);margin-right:auto;display:none;}
@@ -166,6 +174,10 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 .gallery-meta{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--text-3);}
 .gallery-likes{display:flex;align-items:center;gap:4px;color:var(--text-2);}
 .gallery-likes i{font-size:13px;color:var(--red);}
+.ec-btn{background:none;border:none;padding:0 2px;cursor:pointer;color:var(--text-3);line-height:1;font-size:15px;transition:color .15s;}
+.ec-btn:hover{color:var(--gold);}
+.ec-btn.active{color:var(--gold);}
+.ec-btn i{pointer-events:none;}
 .gallery-empty{text-align:center;padding:48px 24px;color:var(--text-3);font-size:13px;}
 .gallery-empty i{font-size:32px;display:block;margin-bottom:10px;}
 
@@ -199,6 +211,101 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 .lb-rp-status.ok{color:var(--green);}
 .lb-rp-status.err{color:var(--red);}
 
+/* AI composition feedback panel */
+.lb-aifb{display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.lb-aifb.open{display:block;}
+.aifb-header{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.aifb-score{font-size:22px;font-weight:700;color:var(--accent);}
+.aifb-summary{font-size:13px;color:var(--text-1);flex:1;}
+.aifb-badge{font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:20px;
+  background:var(--bg-surface);color:var(--text-2);border:1px solid var(--border);}
+.aifb-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.aifb-block{background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
+.aifb-block-title{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--text-2);margin-bottom:6px;}
+.aifb-list{list-style:none;padding:0;margin:0;}
+.aifb-list li{font-size:12px;color:var(--text-1);padding:3px 0;border-bottom:1px solid var(--border);}
+.aifb-list li:last-child{border-bottom:none;}
+.aifb-list li::before{content:"• ";color:var(--accent);}
+.aifb-elements{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.aifb-el{background:var(--bg-surface);border:1px solid var(--border);border-radius:6px;padding:7px 10px;}
+.aifb-el-key{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);margin-bottom:2px;}
+.aifb-el-val{font-size:11.5px;color:var(--text-1);}
+.aifb-cached{font-size:10.5px;color:var(--text-2);text-align:right;margin-top:6px;}
+.aifb-loading{font-size:12px;color:var(--text-2);padding:16px 0;text-align:center;}
+.aifb-error{font-size:12px;color:var(--red);padding:8px 0;}
+/* Audio story recording panel */
+.lb-audio{display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.lb-audio.open{display:block;}
+.audio-rec-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.audio-rec-btn{display:flex;align-items:center;gap:7px;padding:7px 16px;border-radius:8px;
+  border:none;cursor:pointer;font-size:13px;font-weight:600;transition:background .15s;}
+.audio-rec-btn.idle{background:var(--red);color:#fff;}
+.audio-rec-btn.idle:hover{background:#c0392b;}
+.audio-rec-btn.recording{background:var(--bg-surface);color:var(--red);border:1px solid var(--red);
+  animation:recpulse 1.2s ease-in-out infinite;}
+@keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(231,76,60,.4);}50%{box-shadow:0 0 0 7px rgba(231,76,60,0);}}
+.audio-timer{font-size:13px;font-weight:600;color:var(--red);font-variant-numeric:tabular-nums;min-width:42px;}
+.audio-preview-wrap{margin-top:12px;}
+.audio-preview-wrap audio{width:100%;border-radius:8px;outline:none;}
+.audio-save-row{display:flex;gap:8px;margin-top:10px;}
+.audio-del-row{margin-top:10px;display:flex;align-items:center;gap:10px;}
+.audio-del-hint{font-size:11.5px;color:var(--text-2);}
+.audio-status{font-size:12px;margin-top:8px;min-height:16px;}
+.audio-status.ok{color:var(--green);}
+.audio-status.err{color:var(--red);}
+.has-audio-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;
+  padding:2px 7px;background:rgba(52,152,219,.15);color:#3498db;border-radius:20px;
+  border:1px solid rgba(52,152,219,.35);}
+/* Series management view */
+.series-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-top:14px;}
+.series-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;transition:border-color .15s;}
+.series-card:hover{border-color:var(--gold);}
+.series-cover{width:100%;aspect-ratio:4/3;background:var(--bg-card);overflow:hidden;position:relative;}
+.series-cover img{width:100%;height:100%;object-fit:cover;display:block;}
+.series-cover-empty{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:28px;}
+.series-info{padding:10px 12px;}
+.series-title{font-size:13px;font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.series-meta{font-size:11.5px;color:var(--text-2);}
+.series-actions{display:flex;gap:6px;margin-top:8px;}
+
+/* Series edit modal */
+#seriesModal{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:24px;}
+#seriesModal.open{display:flex;}
+.sm-box{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;width:100%;max-width:680px;max-height:90vh;overflow-y:auto;padding:24px;}
+.sm-title{font-size:16px;font-weight:700;margin-bottom:18px;}
+.sm-field{margin-bottom:14px;}
+.sm-label{font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em;}
+.sm-input{width:100%;box-sizing:border-box;background:var(--bg-surface);border:1px solid var(--border);border-radius:7px;
+  color:var(--text-1);font-family:inherit;font-size:13px;padding:8px 10px;outline:none;}
+.sm-input:focus{border-color:var(--gold);}
+.sm-picker-label{font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;}
+.sm-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;max-height:220px;overflow-y:auto;
+  background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:8px;}
+.sm-pick-item{position:relative;aspect-ratio:1;border-radius:5px;overflow:hidden;cursor:pointer;border:2px solid transparent;transition:border-color .12s;}
+.sm-pick-item.selected{border-color:var(--gold);}
+.sm-pick-item img{width:100%;height:100%;object-fit:cover;display:block;}
+.sm-pick-check{position:absolute;top:3px;right:3px;width:16px;height:16px;background:var(--gold);border-radius:50%;
+  display:none;align-items:center;justify-content:center;font-size:9px;color:#000;font-weight:700;}
+.sm-pick-item.selected .sm-pick-check{display:flex;}
+.sm-order-label{font-size:11.5px;color:var(--text-2);margin-top:8px;margin-bottom:4px;}
+.sm-order{display:flex;gap:5px;flex-wrap:wrap;min-height:32px;padding:5px;
+  background:var(--bg-surface);border:1px solid var(--border);border-radius:7px;}
+.sm-order-chip{display:flex;align-items:center;gap:4px;background:var(--bg-card);border:1px solid var(--border);
+  border-radius:5px;padding:3px 7px;font-size:11.5px;cursor:grab;}
+.sm-order-chip i{font-size:13px;color:var(--text-3);}
+.sm-btns{display:flex;gap:8px;margin-top:18px;justify-content:flex-end;}
+.sm-status{font-size:12px;margin-top:8px;min-height:16px;}
+.sm-status.ok{color:var(--green);}
+.sm-status.err{color:var(--red);}
+
+/* Language switcher */
+.lang-switcher{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:7px;
+  border:1px solid var(--border);background:transparent;cursor:pointer;}
+.lang-switcher i{font-size:16px;color:var(--text-2);}
+.lang-select{background:transparent;border:none;color:var(--text-1);font-family:'Inter',sans-serif;
+  font-size:12.5px;cursor:pointer;outline:none;padding:0;}
+.lang-select option{background:var(--bg-card);color:var(--text-1);}
 /* Delete confirm overlay */
 #delConfirm{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.7);
   display:none;align-items:center;justify-content:center;}
@@ -242,6 +349,30 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 .review-empty i{font-size:36px;display:block;margin-bottom:10px;}
 .mod-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;
   padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:var(--red);}
+/* ── Sales / Earnings view ─────────────────────────────────────────── */
+.sales-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;}
+@media(max-width:900px){.sales-grid{grid-template-columns:1fr;}}
+.period-filter{display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;}
+.period-btn{padding:5px 14px;border-radius:20px;border:1.5px solid var(--border);background:none;
+  color:var(--text-2);font-size:12px;cursor:pointer;font-family:inherit;transition:all .12s;}
+.period-btn.active{background:var(--gold);border-color:var(--gold);color:#080808;font-weight:600;}
+.earn-table{width:100%;border-collapse:collapse;}
+.earn-table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--text-3);
+  padding:7px 8px;text-align:left;border-bottom:1px solid var(--border);}
+.earn-table td{padding:9px 8px;border-bottom:1px solid var(--border);font-size:12.5px;vertical-align:middle;}
+.earn-table tr:last-child td{border-bottom:none;}
+.earn-table tr:hover td{background:rgba(255,255,255,.03);}
+.earn-thumb{width:36px;height:36px;object-fit:cover;border-radius:5px;background:var(--bg-card);display:block;}
+.earn-title{font-weight:500;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.earn-rev{color:var(--gold);font-weight:600;}
+.earn-zero{color:var(--text-3);}
+.monthly-chart{display:flex;align-items:flex-end;gap:5px;height:120px;padding-top:8px;}
+.mc-col{display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;}
+.mc-val{font-size:9px;color:var(--text-2);margin-bottom:2px;white-space:nowrap;}
+.mc-bar{width:100%;background:var(--gold);border-radius:3px 3px 0 0;min-height:3px;transition:height .3s ease;}
+.mc-label{font-size:9px;color:var(--text-3);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center;}
+.sales-empty{text-align:center;padding:40px;color:var(--text-3);}
+.sales-empty i{font-size:32px;display:block;margin-bottom:10px;}
 @keyframes spin{to{transform:rotate(360deg);}}
 @keyframes shimmer-dark{0%{background-position:-600px 0}100%{background-position:600px 0}}
 .sk-block{background:linear-gradient(90deg,var(--bg-surface) 25%,var(--bg-card) 50%,var(--bg-surface) 75%);background-size:600px 100%;animation:shimmer-dark 1.4s infinite;}
@@ -273,7 +404,7 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 .timeline-dot{width:7px;height:7px;border-radius:50%;background:var(--gold);flex-shrink:0;}
 .timeline-date{width:88px;font-size:11.5px;color:var(--text-3);flex-shrink:0;}
 .timeline-track{flex:1;height:14px;background:var(--bg-surface);border-radius:4px;overflow:hidden;}
-.timeline-fill{height:100%;background:var(--gold-dim);border:1px solid rgba(200,151,42,.4);border-radius:4px;transition:width .5s ease;min-width:2px;}
+.timeline-fill{height:100%;background:var(--gold-dim);border:1px solid rgba(94,173,130,.4);border-radius:4px;transition:width .5s ease;min-width:2px;}
 .timeline-count{width:22px;text-align:right;font-size:11px;color:var(--text-3);flex-shrink:0;}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(40px);
   background:var(--bg-card);border:1px solid var(--border);border-radius:9px;
@@ -290,43 +421,43 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
   <div class="auth-panel">
     <div class="auth-logo">
       <div class="auth-logo-mark"><i class="ti ti-aperture"></i></div>
-      <div><div class="auth-logo-name">Galleria</div><div class="auth-logo-sub">Studio Portal</div></div>
+      <div><div class="auth-logo-name">Galleria</div><div class="auth-logo-sub" data-i18n="site.logo_sub_portal">Studio Portal</div></div>
     </div>
-    <div class="auth-title">Welcome back</div>
-    <div class="auth-sub">Sign in to your photographer account</div>
+    <div class="auth-title" data-i18n="auth.welcome_back">Welcome back</div>
+    <div class="auth-sub" data-i18n="auth.sign_in_sub">Sign in to your photographer account.</div>
     <div class="auth-tabs">
-      <button class="auth-tab active" onclick="switchAuthTab('signin')">Sign In</button>
-      <button class="auth-tab" onclick="switchAuthTab('signup')">Create Account</button>
+      <button class="auth-tab active" onclick="switchAuthTab('signin')" data-i18n="auth.tab_signin">Sign In</button>
+      <button class="auth-tab" onclick="switchAuthTab('signup')" data-i18n="auth.tab_signup">Create Account</button>
     </div>
     <div id="signinForm">
-      <input id="siEmail" class="auth-field" type="email" placeholder="Email address" autocomplete="email">
-      <input id="siPass" class="auth-field" type="password" placeholder="Password" autocomplete="current-password">
+      <input id="siEmail" class="auth-field" type="email" placeholder="Email address" data-i18n-placeholder="auth.field_email" autocomplete="email">
+      <input id="siPass" class="auth-field" type="password" placeholder="Password" data-i18n-placeholder="auth.field_password" autocomplete="current-password">
       <div style="text-align:right;margin-top:-8px;margin-bottom:14px">
-        <button onclick="switchAuthTab('forgot')" style="background:none;border:none;font-size:12px;color:var(--text-2);cursor:pointer;padding:0;font-family:inherit">Forgot password?</button>
+        <button onclick="switchAuthTab('forgot')" style="background:none;border:none;font-size:12px;color:var(--text-2);cursor:pointer;padding:0;font-family:inherit" data-i18n="auth.link_forgot">Forgot Password?</button>
       </div>
-      <button class="auth-submit" onclick="doSignIn()">Sign In</button>
+      <button class="auth-submit" onclick="doSignIn()" data-i18n="auth.btn_signin">Sign In</button>
     </div>
     <div id="signupForm" style="display:none">
-      <input id="suName" class="auth-field" type="text" placeholder="Full name" autocomplete="name">
-      <input id="suEmail" class="auth-field" type="email" placeholder="Email address" autocomplete="email">
-      <input id="suPass" class="auth-field" type="password" placeholder="Password (min 8 chars)" autocomplete="new-password">
-      <button class="auth-submit" onclick="doSignUp()">Create Account</button>
+      <input id="suName" class="auth-field" type="text" placeholder="Full name" data-i18n-placeholder="auth.field_name" autocomplete="name">
+      <input id="suEmail" class="auth-field" type="email" placeholder="Email address" data-i18n-placeholder="auth.field_email" autocomplete="email">
+      <input id="suPass" class="auth-field" type="password" placeholder="Password (min 8 chars)" data-i18n-placeholder="auth.field_password" autocomplete="new-password">
+      <button class="auth-submit" onclick="doSignUp()" data-i18n="auth.btn_signup">Create Account</button>
     </div>
     <div id="confirmForm" style="display:none">
-      <p style="font-size:13px;color:var(--text-2);margin-bottom:14px">Check your email for the confirmation code.</p>
-      <input id="confCode" class="auth-field" type="text" placeholder="Confirmation code" autocomplete="one-time-code">
-      <button class="auth-submit" onclick="doConfirm()">Verify Account</button>
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:14px" data-i18n="auth.confirm_hint">Check your email for the confirmation code.</p>
+      <input id="confCode" class="auth-field" type="text" placeholder="Confirmation code" data-i18n-placeholder="auth.field_code" autocomplete="one-time-code">
+      <button class="auth-submit" onclick="doConfirm()" data-i18n="auth.btn_verify">Verify Account</button>
     </div>
     <div id="forgotForm" style="display:none">
-      <p style="font-size:13px;color:var(--text-2);margin-bottom:14px">Enter your email and we'll send a reset code.</p>
-      <input id="fpEmail" class="auth-field" type="email" placeholder="Email address" autocomplete="email">
-      <button class="auth-submit" id="fpSendBtn" onclick="doSendResetCode()">Send Reset Code</button>
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:14px" data-i18n="auth.forgot_hint">Enter your email and we'll send a reset code.</p>
+      <input id="fpEmail" class="auth-field" type="email" placeholder="Email address" data-i18n-placeholder="auth.field_email" autocomplete="email">
+      <button class="auth-submit" id="fpSendBtn" onclick="doSendResetCode()" data-i18n="auth.btn_send_code">Send Reset Code</button>
     </div>
     <div id="resetForm" style="display:none">
-      <p style="font-size:13px;color:var(--text-2);margin-bottom:14px">Check your email for the verification code.</p>
-      <input id="fpCode" class="auth-field" type="text" placeholder="Verification code" autocomplete="one-time-code">
-      <input id="fpNewPass" class="auth-field" type="password" placeholder="New password (min 8 chars)" autocomplete="new-password">
-      <button class="auth-submit" id="fpConfirmBtn" onclick="doConfirmReset()">Reset Password</button>
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:14px" data-i18n="auth.reset_hint">Check your email for the verification code.</p>
+      <input id="fpCode" class="auth-field" type="text" placeholder="Verification code" data-i18n-placeholder="auth.field_code" autocomplete="one-time-code">
+      <input id="fpNewPass" class="auth-field" type="password" placeholder="New password (min 8 chars)" data-i18n-placeholder="auth.field_password" autocomplete="new-password">
+      <button class="auth-submit" id="fpConfirmBtn" onclick="doConfirmReset()" data-i18n="auth.btn_confirm_reset">Confirm New Password</button>
     </div>
     <div id="authStatus" class="auth-status"></div>
   </div>
@@ -339,37 +470,42 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
     <div><div class="logo-name">Galleria</div><span class="logo-sub">Studio</span></div>
   </div>
   <nav>
-    <div class="nav-label">Workspace</div>
+    <div class="nav-label" data-i18n="nav.label_library">Workspace</div>
     <div class="nav-item active" id="nav-upload" onclick="showView('upload')">
-      <i class="ti ti-upload"></i> Upload &amp; Process
+      <i class="ti ti-upload"></i> <span data-i18n="nav.upload">Upload &amp; Process</span>
     </div>
     <div class="nav-item" id="nav-library" onclick="showView('library')">
-      <i class="ti ti-photo"></i> My Library
+      <i class="ti ti-photo"></i> <span data-i18n="nav.library">My Library</span>
       <span class="nav-badge" id="libBadge">0</span>
     </div>
-    <div class="nav-item" id="nav-profile" onclick="showView('profile')">
-      <i class="ti ti-user-circle"></i> My Profile
+    <div class="nav-item" id="nav-series" onclick="showView('series')">
+      <i class="ti ti-books"></i> Series
     </div>
-    <div class="nav-label">AI</div>
+    <div class="nav-item" id="nav-profile" onclick="showView('profile')">
+      <i class="ti ti-user-circle"></i> <span data-i18n="nav.profile">My Profile</span>
+    </div>
+    <div class="nav-label" data-i18n="nav.label_ai">AI</div>
     <div class="nav-item" id="nav-review" onclick="showView('review')">
-      <i class="ti ti-shield-exclamation"></i> Needs Review
+      <i class="ti ti-shield-exclamation"></i> <span data-i18n="nav.review">Needs Review</span>
       <span class="nav-badge" id="reviewBadge" style="display:none;background:var(--red);color:#fff;"></span>
     </div>
-    <div class="nav-label">Sales</div>
+    <div class="nav-label" data-i18n="nav.label_sales">Sales</div>
     <div class="nav-item" id="nav-analytics" onclick="showView('analytics')">
-      <i class="ti ti-chart-bar"></i> Analytics
+      <i class="ti ti-chart-bar"></i> <span data-i18n="nav.analytics">Analytics</span>
     </div>
-    <div class="nav-label">Roadmap</div>
+    <div class="nav-item" id="nav-sales" onclick="showView('sales')">
+      <i class="ti ti-coins"></i> <span data-i18n="nav.earnings">Earnings</span>
+    </div>
+    <div class="nav-label" data-i18n="nav.label_roadmap">Roadmap</div>
     <button class="nav-roadmap-toggle" id="roadmap-toggle" onclick="toggleRoadmap()">
-      <i class="ti ti-map-2"></i> Upcoming Features
+      <i class="ti ti-map-2"></i> <span data-i18n="nav.upcoming">Upcoming Features</span>
       <i class="ti ti-chevron-right arrow"></i>
     </button>
     <div class="nav-roadmap-items" id="roadmap-items">
-      <div class="roadmap-item"><i class="ti ti-certificate"></i> Limited Editions<span class="roadmap-badge">Soon</span></div>
-      <div class="roadmap-item"><i class="ti ti-tag"></i> Pricing &amp; Products<span class="roadmap-badge">Soon</span></div>
-      <div class="roadmap-item"><i class="ti ti-shopping-cart"></i> Orders<span class="roadmap-badge">Soon</span></div>
-      <div class="roadmap-item"><i class="ti ti-coins"></i> Earnings<span class="roadmap-badge">Soon</span></div>
-      <div class="roadmap-item"><i class="ti ti-users"></i> Customers<span class="roadmap-badge">Soon</span></div>
+      <div class="roadmap-item"><i class="ti ti-certificate"></i> <span data-i18n="roadmap.limited_editions">Limited Editions</span><span class="roadmap-badge" data-i18n="roadmap.soon">Soon</span></div>
+      <div class="roadmap-item"><i class="ti ti-tag"></i> <span data-i18n="roadmap.pricing">Pricing &amp; Products</span><span class="roadmap-badge" data-i18n="roadmap.soon">Soon</span></div>
+      <div class="roadmap-item"><i class="ti ti-shopping-cart"></i> <span data-i18n="roadmap.orders">Orders</span><span class="roadmap-badge" data-i18n="roadmap.soon">Soon</span></div>
+      <div class="roadmap-item"><i class="ti ti-users"></i> <span data-i18n="roadmap.customers">Customers</span><span class="roadmap-badge" data-i18n="roadmap.soon">Soon</span></div>
     </div>
   </nav>
   <div class="sidebar-footer">
@@ -377,7 +513,7 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
       <div class="avatar" id="userAvatar">?</div>
       <div>
         <div class="user-name" id="userName">Loading…</div>
-        <div class="user-plan">Pro Photographer · Sign out</div>
+        <div class="user-plan"><span data-i18n="user.plan">Pro Photographer</span> · <span data-i18n="user.sign_out">Sign out</span></div>
       </div>
     </div>
   </div>
@@ -387,7 +523,8 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
   <div class="topbar">
     <div class="page-title" id="pageTitle">Upload &amp; Process</div>
     <div class="topbar-right">
-      <button class="btn btn-ghost" onclick="refreshCurrent()"><i class="ti ti-refresh"></i> Refresh</button>
+      <div id="langSwitcherPortal"></div>
+      <button class="btn btn-ghost" onclick="refreshCurrent()"><i class="ti ti-refresh"></i> <span data-i18n="nav.refresh">Refresh</span></button>
     </div>
   </div>
   <div class="content">
@@ -395,22 +532,22 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
     <!-- Upload view -->
     <div class="view active" id="view-upload">
       <div class="stats-row">
-        <div class="stat-card"><div class="stat-label">Total Photos</div><div class="stat-value" id="statPhotos">—</div></div>
-        <div class="stat-card"><div class="stat-label">Total Likes</div><div class="stat-value" id="statLikes">—</div></div>
-        <div class="stat-card"><div class="stat-label">Earnings</div><div class="stat-value">$0</div><div class="stat-sub">Stripe coming soon</div></div>
-        <div class="stat-card"><div class="stat-label">Orders</div><div class="stat-value">0</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="stats.total_photos">Total Photos</div><div class="stat-value" id="statPhotos">—</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="stats.total_likes">Total Likes</div><div class="stat-value" id="statLikes">—</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="stats.earnings">Earnings</div><div class="stat-value">$0</div><div class="stat-sub" data-i18n="stats.stripe_soon">Stripe coming soon</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="stats.orders">Orders</div><div class="stat-value">0</div></div>
       </div>
       <div class="card">
         <div class="section-head">
-          <div><div class="section-title">Upload Photo</div>
-          <div class="section-sub">Drag &amp; drop or click · JPEG, PNG, WebP, TIFF</div></div>
+          <div><div class="section-title" data-i18n="upload.section_title">Upload Photo</div>
+          <div class="section-sub" data-i18n="upload.section_sub">Drag &amp; drop or click · JPEG, PNG, WebP, TIFF</div></div>
         </div>
         <div class="upload-zone" id="uploadZone">
           <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/tiff" multiple onchange="onFileSelect(this)">
           <div class="upload-icon"><i class="ti ti-cloud-upload"></i></div>
-          <div class="upload-title">Drop your photos here</div>
-          <div class="upload-hint">or click to select one or more files</div>
-          <div class="upload-fmts">JPEG · PNG · WebP · TIFF · up to 50 MB each</div>
+          <div class="upload-title" data-i18n="upload.zone_title">Drop your photos here</div>
+          <div class="upload-hint" data-i18n="upload.zone_hint">or click to select one or more files</div>
+          <div class="upload-fmts" data-i18n="upload.zone_formats">JPEG · PNG · WebP · TIFF · up to 50 MB each</div>
         </div>
         <div class="file-selected" id="fileSelected">
           <i class="ti ti-file-check" style="color:var(--green)"></i>
@@ -419,18 +556,55 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
       </div>
       <div class="card">
         <div class="section-head">
-          <div><div class="section-title">AI Processing Pipeline</div>
-          <div class="section-sub">Select effects — applied server-side via Lambda + Step Functions</div></div>
+          <div><div class="section-title" data-i18n="upload.pipeline_title">AI Processing Pipeline</div>
+          <div class="section-sub" data-i18n="upload.pipeline_sub">Select effects — applied server-side via Lambda + Step Functions</div></div>
         </div>
         <div class="effects-grid" id="effectsGrid"></div>
-        <div class="pipeline-summary" id="pipelineSummary">No effects selected — original only</div>
+        <div class="pipeline-summary" id="pipelineSummary" data-i18n="upload.no_effects">No effects selected — original only</div>
         <div class="divider"></div>
         <div class="edition-row">
           <div class="toggle" id="editionToggle" onclick="toggleEdition()"><div class="toggle-thumb"></div></div>
           <div>
-            <div class="edition-label">Limited Edition Print</div>
-            <div class="edition-hint">Mark as limited run — customers see edition badge &amp; scarcity counter</div>
+            <div class="edition-label" data-i18n="upload.limited_label">Limited Edition Print</div>
+            <div class="edition-hint" data-i18n="upload.limited_hint">Mark as limited run — customers see edition badge &amp; scarcity counter</div>
           </div>
+        </div>
+        <div class="cat-row">
+          <i class="ti ti-tag" style="color:var(--text-2);font-size:16px;flex-shrink:0;"></i>
+          <div class="cat-row-label" data-i18n="upload.category_label">Category</div>
+          <select class="cat-select" id="categorySelect">
+            <option value="other">Select a category</option>
+            <option value="abstract">Abstract</option>
+            <option value="aerial">Aerial</option>
+            <option value="animals">Animals</option>
+            <option value="bw">Black &amp; White</option>
+            <option value="boudoir">Boudoir</option>
+            <option value="celebrities">Celebrities</option>
+            <option value="city">City &amp; Architecture</option>
+            <option value="commercial">Commercial</option>
+            <option value="concert">Concert</option>
+            <option value="family">Family</option>
+            <option value="fashion">Fashion</option>
+            <option value="film">Film</option>
+            <option value="fineart">Fine Art</option>
+            <option value="food">Food</option>
+            <option value="journalism">Journalism</option>
+            <option value="landscape">Landscape</option>
+            <option value="macro">Macro</option>
+            <option value="nature">Nature</option>
+            <option value="night">Night</option>
+            <option value="other">Other</option>
+            <option value="people">People</option>
+            <option value="performing">Performing Arts</option>
+            <option value="sport">Sport</option>
+            <option value="stilllife">Still Life</option>
+            <option value="street">Street</option>
+            <option value="transportation">Transportation</option>
+            <option value="travel">Travel</option>
+            <option value="underwater">Underwater</option>
+            <option value="urbex">Urban Exploration</option>
+            <option value="wedding">Wedding</option>
+          </select>
         </div>
       </div>
     </div>
@@ -439,8 +613,8 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
     <div class="view" id="view-library">
       <div class="card">
         <div class="section-head">
-          <div><div class="section-title">My Library</div>
-          <div class="section-sub">Click any photo to preview, edit, or delete</div></div>
+          <div><div class="section-title" data-i18n="library.title">My Library</div>
+          <div class="section-sub" data-i18n="library.sub">Click any photo to preview, edit, or delete</div></div>
           <button class="btn btn-ghost" onclick="loadGallery()"><i class="ti ti-refresh"></i> Refresh</button>
         </div>
         <div class="gallery-grid" id="galleryGrid">
@@ -452,31 +626,75 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
       </div>
     </div>
 
+    <!-- Series view -->
+    <div class="view" id="view-series">
+      <div class="card">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Series &amp; Essays</div>
+            <div class="section-sub">Group photos into curated narratives for buyers to explore</div>
+          </div>
+          <button class="btn btn-primary" onclick="openCreateSeries()">
+            <i class="ti ti-plus"></i> New Series
+          </button>
+        </div>
+        <div class="series-grid" id="seriesGrid">
+          <div style="color:var(--text-2);font-size:13px;padding:20px 0">Loading series…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Series create/edit modal -->
+    <div id="seriesModal">
+      <div class="sm-box">
+        <div class="sm-title" id="smTitle">New Series</div>
+        <div class="sm-field">
+          <div class="sm-label">Title</div>
+          <input class="sm-input" id="smTitleInput" placeholder="e.g. Golden Hour Portraits" maxlength="80">
+        </div>
+        <div class="sm-field">
+          <div class="sm-label">Description</div>
+          <textarea class="sm-input" id="smDescInput" rows="3" placeholder="A short description of this series…" style="resize:vertical"></textarea>
+        </div>
+        <div class="sm-picker-label">Select Photos (click to toggle, drag to reorder)</div>
+        <div class="sm-picker" id="smPicker"></div>
+        <div class="sm-order-label">Photo order (drag chips to reorder)</div>
+        <div class="sm-order" id="smOrder"></div>
+        <div class="sm-btns">
+          <button class="btn btn-ghost" onclick="closeSeriesModal()">Cancel</button>
+          <button class="btn btn-primary" id="smSaveBtn" onclick="saveSeries()">
+            <i class="ti ti-device-floppy"></i> Save
+          </button>
+        </div>
+        <div class="sm-status" id="smStatus"></div>
+      </div>
+    </div>
+
     <!-- Analytics view -->
     <div class="view" id="view-analytics">
       <div class="stats-row">
-        <div class="stat-card"><div class="stat-label">Total Photos</div><div class="stat-value" id="aPhotos">—</div></div>
-        <div class="stat-card"><div class="stat-label">Total Likes</div><div class="stat-value" id="aLikes">—</div></div>
-        <div class="stat-card"><div class="stat-label">Avg Likes / Photo</div><div class="stat-value" id="aAvg">—</div></div>
-        <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value" id="aRevenue">—</div><div class="stat-sub">Realised via Stripe</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="stats.total_photos">Total Photos</div><div class="stat-value" id="aPhotos">—</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="stats.total_likes">Total Likes</div><div class="stat-value" id="aLikes">—</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="stats.avg_likes">Avg Likes / Photo</div><div class="stat-value" id="aAvg">—</div></div>
+        <div class="stat-card"><div class="stat-label" data-i18n="stats.total_revenue">Total Revenue</div><div class="stat-value" id="aRevenue">—</div><div class="stat-sub" data-i18n="stats.realised_stripe">Realised via Stripe</div></div>
       </div>
       <div class="analytics-grid">
         <div class="card">
-          <div class="section-head"><div><div class="section-title">Likes by Photo</div><div class="section-sub">Top 10 most engaged</div></div></div>
+          <div class="section-head"><div><div class="section-title" data-i18n="analytics.likes_by_photo">Likes by Photo</div><div class="section-sub" data-i18n="analytics.top_10">Top 10 most engaged</div></div></div>
           <div id="likesChart"></div>
         </div>
         <div class="card">
-          <div class="section-head"><div><div class="section-title">Top Photos</div><div class="section-sub">Ranked by engagement</div></div></div>
+          <div class="section-head"><div><div class="section-title" data-i18n="analytics.top_photos">Top Photos</div><div class="section-sub" data-i18n="analytics.ranked">Ranked by engagement</div></div></div>
           <table class="leaderboard" id="leaderboardTable"></table>
         </div>
       </div>
       <div class="analytics-grid">
         <div class="card">
-          <div class="section-head"><div><div class="section-title">Rekognition Tag Frequency</div><div class="section-sub">AI-detected subjects across your library</div></div></div>
+          <div class="section-head"><div><div class="section-title" data-i18n="analytics.tag_frequency">Rekognition Tag Frequency</div><div class="section-sub" data-i18n="analytics.ai_subjects">AI-detected subjects across your library</div></div></div>
           <div id="tagCloud"></div>
         </div>
         <div class="card">
-          <div class="section-head"><div><div class="section-title">Upload Activity</div><div class="section-sub">Photos published over time</div></div></div>
+          <div class="section-head"><div><div class="section-title" data-i18n="analytics.upload_activity">Upload Activity</div><div class="section-sub" data-i18n="analytics.photos_over_time">Photos published over time</div></div></div>
           <div id="uploadTimeline"></div>
         </div>
       </div>
@@ -487,45 +705,45 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
       <div class="card">
         <div class="section-head">
           <div>
-            <div class="section-title">Photographer Profile</div>
-            <div class="section-sub">Your public profile is visible to customers browsing the gallery.</div>
+            <div class="section-title" data-i18n="profile.title">Photographer Profile</div>
+            <div class="section-sub" data-i18n="profile.sub">Your public profile is visible to customers browsing the gallery.</div>
           </div>
         </div>
         <div class="profile-form">
           <div class="pf-row">
-            <div class="pf-label">Display Name</div>
-            <input class="pf-input" type="text" id="prof-name" placeholder="Your photographer name">
+            <div class="pf-label" data-i18n="profile.display_name">Display Name</div>
+            <input class="pf-input" type="text" id="prof-name" placeholder="Your photographer name" data-i18n-placeholder="profile.ph_name">
           </div>
           <div class="pf-row">
-            <div class="pf-label">Location</div>
-            <input class="pf-input" type="text" id="prof-loc" placeholder="City, Country">
+            <div class="pf-label" data-i18n="profile.location">Location</div>
+            <input class="pf-input" type="text" id="prof-loc" placeholder="City, Country" data-i18n-placeholder="profile.ph_location">
           </div>
           <div class="pf-row">
-            <div class="pf-label">Website</div>
-            <input class="pf-input" type="url" id="prof-web" placeholder="https://yoursite.com">
+            <div class="pf-label" data-i18n="profile.website">Website</div>
+            <input class="pf-input" type="url" id="prof-web" placeholder="https://yoursite.com" data-i18n-placeholder="profile.ph_website">
           </div>
           <div class="pf-row">
-            <div class="pf-label">Instagram</div>
-            <input class="pf-input" type="text" id="prof-ig" placeholder="@username">
+            <div class="pf-label" data-i18n="profile.instagram">Instagram</div>
+            <input class="pf-input" type="text" id="prof-ig" placeholder="@username" data-i18n-placeholder="profile.ph_instagram">
           </div>
           <div class="pf-row">
-            <div class="pf-label">Watermark Text</div>
-            <input class="pf-input" type="text" id="prof-watermark" placeholder="© Your Name — leave blank to use the default" maxlength="120">
+            <div class="pf-label" data-i18n="profile.watermark">Watermark Text</div>
+            <input class="pf-input" type="text" id="prof-watermark" placeholder="© Your Name — leave blank to use the default" data-i18n-placeholder="profile.ph_watermark" maxlength="120">
           </div>
           <div class="pf-row">
-            <div class="pf-label">Biography</div>
-            <textarea class="pf-input pf-textarea" id="prof-bio" placeholder="Tell your story — your background, inspiration, and approach to photography…"></textarea>
+            <div class="pf-label" data-i18n="profile.biography">Biography</div>
+            <textarea class="pf-input pf-textarea" id="prof-bio" placeholder="Tell your story — your background, inspiration, and approach to photography…" data-i18n-placeholder="profile.ph_bio"></textarea>
           </div>
           <div class="pf-row">
             <div class="eq-header">
-              <div class="pf-label" style="margin:0;">Camera Equipment</div>
-              <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="addEquipment()"><i class="ti ti-plus"></i> Add Item</button>
+              <div class="pf-label" style="margin:0;" data-i18n="profile.equipment">Camera Equipment</div>
+              <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;" onclick="addEquipment()"><i class="ti ti-plus"></i> <span data-i18n="profile.add_item">Add Item</span></button>
             </div>
             <div class="eq-list" id="eq-list"></div>
-            <div style="font-size:12px;color:var(--text-3);">Add cameras, lenses, tripods, and other gear you use. Customers see this when viewing your profile.</div>
+            <div style="font-size:12px;color:var(--text-3);" data-i18n="profile.equipment_hint">Add cameras, lenses, tripods, and other gear you use. Customers see this when viewing your profile.</div>
           </div>
           <div style="display:flex;align-items:center;gap:12px;margin-top:8px;">
-            <button class="btn btn-primary" onclick="saveProfile()"><i class="ti ti-device-floppy"></i> Save Profile</button>
+            <button class="btn btn-primary" onclick="saveProfile()"><i class="ti ti-device-floppy"></i> <span data-i18n="profile.save">Save Profile</span></button>
             <span class="pf-status" id="pf-status"></span>
           </div>
         </div>
@@ -537,23 +755,58 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
       <div class="card">
         <div class="section-head">
           <div>
-            <div class="section-title"><i class="ti ti-shield-exclamation" style="color:var(--red);margin-right:6px;"></i>Content Moderation — Needs Review</div>
-            <div class="section-sub">Photos flagged by Rekognition AI before publishing. Review and approve or permanently delete.</div>
+            <div class="section-title"><i class="ti ti-shield-exclamation" style="color:var(--red);margin-right:6px;"></i><span data-i18n="review.title">Content Moderation — Needs Review</span></div>
+            <div class="section-sub" data-i18n="review.sub">Photos flagged by Rekognition AI before publishing. Review and approve or permanently delete.</div>
           </div>
-          <button class="btn btn-ghost" onclick="loadFlaggedPhotos()"><i class="ti ti-refresh"></i> Refresh</button>
+          <button class="btn btn-ghost" onclick="loadFlaggedPhotos()"><i class="ti ti-refresh"></i> <span data-i18n="nav.refresh">Refresh</span></button>
         </div>
         <div id="review-grid-wrap">
-          <div class="review-empty"><i class="ti ti-shield-check"></i>Loading…</div>
+          <div class="review-empty"><i class="ti ti-shield-check"></i><span data-i18n="review.loading">Loading…</span></div>
         </div>
       </div>
     </div>
 
     <!-- Coming soon -->
+    <!-- Earnings / Sales dashboard -->
+    <div class="view" id="view-sales">
+      <div class="stats-row" id="earn-stats-row">
+        <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value" id="earnRevTotal">—</div><div class="stat-sub">Realised via Stripe</div></div>
+        <div class="stat-card"><div class="stat-label">Total Sales</div><div class="stat-value" id="earnSalesTotal">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Photos</div><div class="stat-value" id="earnPhotosTotal">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Likes</div><div class="stat-value" id="earnLikesTotal">—</div></div>
+      </div>
+      <div class="period-filter" id="earn-period-filter">
+        <span style="font-size:12px;color:var(--text-3);margin-right:4px;">Period:</span>
+        <button class="period-btn active" onclick="loadSales('')">All Time</button>
+        <div id="earn-month-btns" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+      </div>
+      <div class="sales-grid">
+        <div class="card">
+          <div class="section-head"><div>
+            <div class="section-title">Top Earners</div>
+            <div class="section-sub">Revenue per photo, ranked descending</div>
+          </div></div>
+          <div id="earn-table-wrap">
+            <div class="sales-empty"><i class="ti ti-loader-2" style="animation:spin .9s linear infinite;"></i>Loading…</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-head"><div>
+            <div class="section-title">Monthly Revenue</div>
+            <div class="section-sub">All-time revenue by month</div>
+          </div></div>
+          <div id="earn-monthly-wrap">
+            <div class="sales-empty"><i class="ti ti-chart-bar" style="color:var(--text-3);"></i>No monthly data yet</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="view" id="view-coming">
       <div class="coming-soon">
         <i class="ti ti-tools"></i>
-        <h3 id="comingSoonTitle">Coming Soon</h3>
-        <p>This feature is under construction and will be available in a future release.</p>
+        <h3 id="comingSoonTitle" data-i18n="coming_soon.title">Coming Soon</h3>
+        <p data-i18n="coming_soon.body">This feature is under construction and will be available in a future release.</p>
       </div>
     </div>
 
@@ -561,9 +814,9 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 
   <div class="action-bar" id="actionBar">
     <div class="upload-status" id="uploadStatus"></div>
-    <button class="btn btn-ghost" onclick="resetUpload()"><i class="ti ti-x"></i> Clear</button>
+    <button class="btn btn-ghost" onclick="resetUpload()"><i class="ti ti-x"></i> <span data-i18n="upload.btn_clear">Clear</span></button>
     <button class="btn btn-primary" id="processBtn" onclick="handleUpload()" disabled>
-      <i class="ti ti-player-play"></i> Process &amp; Publish
+      <i class="ti ti-player-play"></i> <span data-i18n="upload.btn_process">Process &amp; Publish</span>
     </button>
   </div>
 </div>
@@ -580,29 +833,40 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
         <div class="lb-info">
           <div class="lb-name" id="lbName"></div>
           <div class="lb-meta">
-            <span class="lb-likes-c"><i class="ti ti-heart-filled"></i> <span id="lbLikes">0</span> likes</span>
+            <span class="lb-likes-c"><i class="ti ti-heart-filled"></i> <span id="lbLikes">0</span> <span data-i18n="library.likes">likes</span></span>
             <span id="lbDate"></span>
           </div>
           <div class="lb-tags" id="lbTags"></div>
         </div>
         <div class="lb-actions">
+
+          <button class="btn btn-ghost" onclick="toggleAudioPanel()" id="lbAudioBtn">
+            <i class="ti ti-microphone"></i> Voice Note
+          </button>
+          <button class="btn btn-ghost" onclick="toggleAiFeedback()" id="lbAiBtn">
+            <i class="ti ti-brain"></i> AI Feedback
+          </button>
           <button class="btn btn-ghost" onclick="toggleReprocess()" id="lbRpBtn">
-            <i class="ti ti-settings"></i> Re-process
+            <i class="ti ti-settings"></i> <span data-i18n="lightbox.reprocess">Re-process</span>
           </button>
           <button class="btn btn-danger" onclick="confirmDelete()">
-            <i class="ti ti-trash"></i> Delete
+            <i class="ti ti-trash"></i> <span data-i18n="lightbox.delete">Delete</span>
           </button>
         </div>
       </div>
+      <!-- Audio story panel -->
+      <div class="lb-audio" id="lbAudio"></div>
+      <!-- AI Composition Feedback panel -->
+      <div class="lb-aifb" id="lbAiFb"></div>
       <!-- Re-process panel -->
       <div class="lb-reprocess" id="lbReprocess">
-        <div class="lb-reprocess-title">Select new effects and re-run the processing pipeline:</div>
+        <div class="lb-reprocess-title" data-i18n="lightbox.reprocess_title">Select new effects and re-run the processing pipeline:</div>
         <div class="effects-grid compact" id="lbEffectsGrid"></div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
           <button class="btn btn-primary" onclick="doReprocess()" id="lbApplyBtn">
-            <i class="ti ti-player-play"></i> Apply Effects
+            <i class="ti ti-player-play"></i> <span data-i18n="lightbox.apply_effects">Apply Effects</span>
           </button>
-          <button class="btn btn-ghost" onclick="toggleReprocess()">Cancel</button>
+          <button class="btn btn-ghost" onclick="toggleReprocess()" data-i18n="lightbox.cancel">Cancel</button>
           <span class="lb-rp-status" id="lbRpStatus"></span>
         </div>
       </div>
@@ -613,12 +877,12 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 <!-- Delete confirm -->
 <div id="delConfirm">
   <div class="del-box">
-    <h3>Delete this photo?</h3>
-    <p>This permanently removes the image from S3 and your gallery. This cannot be undone.</p>
+    <h3 data-i18n="delete_confirm.title">Delete this photo?</h3>
+    <p data-i18n="delete_confirm.body">This permanently removes the image from S3 and your gallery. This cannot be undone.</p>
     <div class="del-btns">
-      <button class="btn btn-ghost" onclick="closeDelConfirm()">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeDelConfirm()" data-i18n="delete_confirm.cancel">Cancel</button>
       <button class="btn btn-danger" onclick="doDelete()" id="delConfirmBtn">
-        <i class="ti ti-trash"></i> Yes, Delete
+        <i class="ti ti-trash"></i> <span data-i18n="delete_confirm.confirm">Yes, Delete</span>
       </button>
     </div>
   </div>
@@ -636,27 +900,51 @@ const CONFIG={
 const userPool=new AmazonCognitoIdentity.CognitoUserPool({UserPoolId:CONFIG.UserPoolId,ClientId:CONFIG.ClientId});
 let currentIdToken=null,currentUser=null,currentSub=null,_currentView='upload';
 
-const EFFECTS=[
-  {id:'hdr',       icon:'ti-sun-high',    name:'HDR Tone Map',    desc:'Expand dynamic range'},
-  {id:'cinematic', icon:'ti-movie',        name:'Cinematic LUT',   desc:'Hollywood colour grade'},
-  {id:'bw',        icon:'ti-contrast',     name:'Black & White',   desc:'Classic monochrome'},
-  {id:'portrait',  icon:'ti-user-circle',  name:'Portrait Retouch',desc:'Skin & clarity boost'},
-  {id:'landscape', icon:'ti-mountain',     name:'Landscape Pop',   desc:'Vivid sky & foliage'},
-  {id:'golden',    icon:'ti-sunset',       name:'Golden Hour',     desc:'Warm sunset tones'},
-  {id:'moody',     icon:'ti-cloud-storm',  name:'Moody Shadows',   desc:'Deep shadow lift'},
-  {id:'sharp',     icon:'ti-zoom-in',      name:'Super Sharp',     desc:'AI unsharp mask'},
-  {id:'denoise',   icon:'ti-ripple',       name:'AI Denoise',      desc:'Remove grain & noise'},
-  {id:'vignette',  icon:'ti-circle',       name:'Vignette',        desc:'Focus draw to centre'},
-  {id:'film',      icon:'ti-camera',       name:'Film Grain',      desc:'Organic texture add'},
-  {id:'colour_pop',icon:'ti-palette',      name:'Colour Pop',      desc:'Selective saturation'},
-  {id:'vintage',   icon:'ti-clock-vintage',name:'Vintage Fade',    desc:'Faded chrome look'},
-  {id:'aerial',    icon:'ti-drone',        name:'Aerial Grade',    desc:'Muted haze for drone'},
+// Effects definitions — names/descs are resolved at render time via i18n.t()
+// so they automatically update when the user changes language.
+const EFFECTS_DEF=[
+  {id:'hdr',        icon:'ti-sun-high'},
+  {id:'cinematic',  icon:'ti-movie'},
+  {id:'bw',         icon:'ti-contrast'},
+  {id:'portrait',   icon:'ti-user-circle'},
+  {id:'landscape',  icon:'ti-mountain'},
+  {id:'golden',     icon:'ti-sunset'},
+  {id:'moody',      icon:'ti-cloud-storm'},
+  {id:'sharp',      icon:'ti-zoom-in'},
+  {id:'denoise',    icon:'ti-ripple'},
+  {id:'vignette',   icon:'ti-circle'},
+  {id:'film',       icon:'ti-camera'},
+  {id:'colour_pop', icon:'ti-palette'},
+  {id:'vintage',    icon:'ti-clock-vintage'},
+  {id:'aerial',     icon:'ti-drone'},
 ];
-let selectedEffects=new Set(),isLimitedEdition=false,selectedFile=null,selectedFiles=[];
+// Build the EFFECTS array with live translations
+function getEffects(){
+  const _t=window.i18n?window.i18n.t:function(k){return k.split('.').pop();};
+  return EFFECTS_DEF.map(e=>({
+    ...e,
+    name:_t('effects.'+e.id+'_name'),
+    desc:_t('effects.'+e.id+'_desc'),
+  }));
+}
+// Alias for code that still references EFFECTS directly
+const EFFECTS=EFFECTS_DEF; // kept for backward compat; use getEffects() when rendering
+let selectedEffects=new Set(),isLimitedEdition=false,selectedCategory='other',selectedFile=null,selectedFiles=[];
 let lbSelectedEffects=new Set();
 let _lbPhoto=null;
 
 /* === Navigation === */
+function getNavTitles(){
+  const _t=window.i18n?window.i18n.t:function(k){return k.split('.').pop();};
+  return {
+    upload:   _t('nav.upload'),
+    library:  _t('nav.library'),
+    analytics:_t('nav.analytics'),
+    profile:  _t('nav.profile'),
+    review:   _t('nav.review'),
+    sales:    _t('nav.earnings')||'Earnings',
+  };
+}
 function showView(v){
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
@@ -664,7 +952,7 @@ function showView(v){
   const nEl=document.getElementById('nav-'+v);
   if(vEl)vEl.classList.add('active');
   if(nEl)nEl.classList.add('active');
-  const titles={upload:'Upload & Process',library:'My Library',analytics:'Analytics',profile:'My Profile',review:'Needs Review'};
+  const titles=getNavTitles();
   document.getElementById('pageTitle').textContent=titles[v]||v;
   document.getElementById('actionBar').style.display=v==='upload'?'flex':'none';
   _currentView=v;
@@ -672,6 +960,8 @@ function showView(v){
   if(v==='analytics')loadAnalytics();
   if(v==='profile')loadProfile();
   if(v==='review')loadFlaggedPhotos();
+  if(v==='sales')loadSales('');
+  if(v==='series')loadSeriesList();
 }
 function toggleRoadmap(){
   const toggle=document.getElementById('roadmap-toggle');
@@ -691,6 +981,7 @@ function comingSoon(name){
 function refreshCurrent(){
   if(_currentView==='library')loadGallery();
   if(_currentView==='analytics')loadAnalytics();
+  if(_currentView==='sales')loadSales('');
   if(_currentView==='upload')loadStats();
 }
 
@@ -706,8 +997,14 @@ function switchAuthTab(tab){
   document.getElementById('resetForm').style.display=tab==='reset'?'block':'none';
   const title=document.querySelector('.auth-title');
   const sub=document.querySelector('.auth-sub');
-  if(tab==='forgot'||tab==='reset'){title.textContent='Reset Password';sub.textContent='We\'ll send a code to your email.';}
-  else{title.textContent='Welcome back';sub.textContent='Sign in to your photographer account.';}
+  const _t=window.i18n?window.i18n.t:function(k,fb){return fb||k;};
+  if(tab==='forgot'||tab==='reset'){
+    title.textContent=_t('auth.reset_password','Reset Password');
+    sub.textContent=_t('auth.reset_sub','We\'ll send a code to your email.');
+  }else{
+    title.textContent=_t('auth.welcome_back','Welcome back');
+    sub.textContent=_t('auth.sign_in_sub','Sign in to your photographer account.');
+  }
   document.getElementById('authStatus').textContent='';
 }
 function doSendResetCode(){
@@ -845,6 +1142,175 @@ async function saveProfile(){
   }catch(e){st.textContent='Error: '+e.message; st.className='pf-status err';}
 }
 
+// ── Sales / Earnings Dashboard ────────────────────────────────────────────
+// AWS Cert Note (SAA-C03): The /earnings Lambda scans OrdersTable filtered by
+// photographerId — O(orders) per call.  At scale, add a GSI on
+// (photographerId, createdAt) to avoid full table scans.
+let _earnPeriod='';
+async function loadSales(period){
+  if(!currentIdToken)return;
+  _earnPeriod=period;
+
+  // Update period button states
+  document.querySelectorAll('.period-btn').forEach(b=>{
+    b.classList.toggle('active', b.textContent.trim()===(period?period:'All Time'));
+  });
+
+  const tableWrap=document.getElementById('earn-table-wrap');
+  const monthWrap=document.getElementById('earn-monthly-wrap');
+  tableWrap.innerHTML='<div class="sales-empty"><i class="ti ti-loader-2" style="animation:spin .9s linear infinite;font-size:24px;"></i></div>';
+
+  try{
+    const qs=period?'?period='+encodeURIComponent(period):'';
+    const r=await fetch(CONFIG.ApiBase+'/earnings'+qs,{headers:{Authorization:currentIdToken}});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const s=d.summary||{};
+
+    // Stats row
+    document.getElementById('earnRevTotal').textContent='$'+(s.totalRevenue||0).toFixed(2);
+    document.getElementById('earnSalesTotal').textContent=s.totalSales||0;
+    document.getElementById('earnPhotosTotal').textContent=s.totalPhotos||0;
+    document.getElementById('earnLikesTotal').textContent=s.totalLikes||0;
+
+    // Build month buttons once (all-time response includes monthly map)
+    if(!period && d.monthly){
+      const months=Object.keys(d.monthly).sort();
+      const btnEl=document.getElementById('earn-month-btns');
+      btnEl.innerHTML=months.slice(-6).map(m=>`<button class="period-btn" onclick="loadSales('${m}')">${m}</button>`).join('');
+    }
+
+    // Top earners table
+    const photos=(d.topPhotos||[]).filter(p=>p.sales>0||p.revenue>0);
+    const allPhotos=d.topPhotos||[];
+    if(!allPhotos.length){
+      tableWrap.innerHTML='<div class="sales-empty"><i class="ti ti-photo-off"></i>No photos yet</div>';
+    } else {
+      const THUMBS=CONFIG.ThumbsBase||'';
+      tableWrap.innerHTML='<table class="earn-table">'
+        +'<thead><tr><th></th><th>Photo</th><th>Likes</th><th>Sales</th><th>Revenue</th></tr></thead>'
+        +'<tbody>'
+        +allPhotos.slice(0,15).map(p=>{
+          const thumbSrc=p.thumbnailKey?(THUMBS+'/'+p.thumbnailKey):'';
+          const revStr=p.revenue>0?`<span class="earn-rev">$${p.revenue.toFixed(2)}</span>`:'<span class="earn-zero">—</span>';
+          const salesStr=p.sales>0?p.sales:'<span class="earn-zero">—</span>';
+          return '<tr>'
+            +`<td><img class="earn-thumb" src="${E(thumbSrc)}" alt="" onerror="this.style.opacity='.2'"></td>`
+            +`<td><div class="earn-title" title="${E(p.title||p.photoId)}">${E(p.title||p.photoId)}</div></td>`
+            +`<td>${p.likes||0}</td>`
+            +`<td>${salesStr}</td>`
+            +`<td>${revStr}</td>`
+            +'</tr>';
+        }).join('')
+        +'</tbody></table>';
+    }
+
+    // Monthly revenue chart (only shown for all-time view)
+    if(!period && d.monthly && Object.keys(d.monthly).length){
+      const months=Object.keys(d.monthly).sort().slice(-12);
+      const maxRev=Math.max(...months.map(m=>d.monthly[m].revenue),0.01);
+      monthWrap.innerHTML='<div class="monthly-chart">'
+        +months.map(m=>{
+          const rev=d.monthly[m].revenue||0;
+          const pct=Math.round((rev/maxRev)*100);
+          const label=m.slice(5); // "MM"
+          return `<div class="mc-col">`
+            +`<div class="mc-val">${rev>0?'$'+rev.toFixed(0):''}</div>`
+            +`<div class="mc-bar" style="height:${Math.max(pct,2)}%;" title="${m}: $${rev.toFixed(2)}"></div>`
+            +`<div class="mc-label">${label}</div>`
+            +'</div>';
+        }).join('')
+        +'</div>';
+    } else if(period){
+      monthWrap.innerHTML='<div class="sales-empty" style="padding:20px;"><i class="ti ti-calendar"></i>Month view — see full trend in All Time</div>';
+    } else {
+      monthWrap.innerHTML='<div class="sales-empty"><i class="ti ti-chart-bar"></i>No sales recorded yet</div>';
+    }
+
+  }catch(e){
+    tableWrap.innerHTML=`<div class="sales-empty"><i class="ti ti-alert-circle"></i>${E(e.message)}</div>`;
+  }
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────
+async function loadAnalytics(){
+  if(!currentIdToken)return;
+  try{
+    const r=await fetch(CONFIG.ApiBase+'/list-images'+(currentSub?'?photographerId='+encodeURIComponent(currentSub):''),{headers:{Authorization:currentIdToken}});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    const photos=(data.photos||data||[]);
+
+    // Stats
+    const totalLikes=photos.reduce((s,p)=>s+(p.likes||0),0);
+    const avg=photos.length?Math.round(totalLikes/photos.length*10)/10:0;
+    document.getElementById('aPhotos').textContent=photos.length;
+    document.getElementById('aLikes').textContent=totalLikes;
+    document.getElementById('aAvg').textContent=avg;
+    // aRevenue populated by loadSales if called; leave as-is here
+
+    // Leaderboard table (top 10 by likes)
+    const sorted=[...photos].sort((a,b)=>(b.likes||0)-(a.likes||0)).slice(0,10);
+    const lb=document.getElementById('leaderboardTable');
+    if(lb){
+      lb.innerHTML='<thead><tr><th>#</th><th>Photo</th><th>Likes</th></tr></thead><tbody>'
+        +sorted.map((p,i)=>`<tr><td style="color:var(--text-3);font-size:11px;">${i+1}</td>`
+          +`<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${E(p.fileName||p.title||p.photoId)}</td>`
+          +`<td><i class="ti ti-heart-filled" style="color:var(--red);font-size:10px;vertical-align:-1px;"></i> ${p.likes||0}</td></tr>`).join('')
+        +'</tbody>';
+    }
+
+    // Likes bar chart (simple CSS bars)
+    const top10=[...photos].sort((a,b)=>(b.likes||0)-(a.likes||0)).slice(0,10);
+    const maxL=Math.max(...top10.map(p=>p.likes||0),1);
+    const lc=document.getElementById('likesChart');
+    if(lc){
+      lc.innerHTML='<div style="display:flex;align-items:flex-end;gap:5px;height:100px;padding-top:8px;">'
+        +top10.map(p=>{
+          const h=Math.round(((p.likes||0)/maxL)*90)+5;
+          const name=(p.fileName||p.title||'').split('.')[0].slice(0,10);
+          return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">`
+            +`<div style="width:100%;background:var(--gold);border-radius:3px 3px 0 0;height:${h}px;" title="${E(p.fileName||p.title||'')} — ${p.likes||0} likes"></div>`
+            +`<div style="font-size:9px;color:var(--text-3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center;">${E(name)}</div>`
+            +'</div>';
+        }).join('')+'</div>';
+    }
+
+    // Tag cloud
+    const tagFreq={};
+    photos.forEach(p=>(p.tags||[]).forEach(t=>{const k=t.Name||t;tagFreq[k]=(tagFreq[k]||0)+1;}));
+    const topTags=Object.entries(tagFreq).sort((a,b)=>b[1]-a[1]).slice(0,20);
+    const maxF=topTags[0]?topTags[0][1]:1;
+    const tc=document.getElementById('tagCloud');
+    if(tc){
+      tc.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:7px;padding:8px 0;">'
+        +topTags.map(([tag,n])=>{
+          const sz=10+Math.round((n/maxF)*8);
+          return `<span style="font-size:${sz}px;color:var(--text-2);padding:3px 8px;background:var(--bg-surface);border-radius:12px;cursor:default;" title="${n} photo${n!==1?'s':''}">${E(tag)}</span>`;
+        }).join('')+'</div>';
+    }
+
+    // Upload timeline (photos per month)
+    const monthly={};
+    photos.forEach(p=>{const d=(p.uploadedAt||p.uploadDate||'').slice(0,7);if(d)monthly[d]=(monthly[d]||0)+1;});
+    const months=Object.keys(monthly).sort().slice(-12);
+    const maxM=Math.max(...months.map(m=>monthly[m]),1);
+    const tl=document.getElementById('uploadTimeline');
+    if(tl){
+      tl.innerHTML='<div style="display:flex;align-items:flex-end;gap:5px;height:100px;padding-top:8px;">'
+        +months.map(m=>{
+          const h=Math.round((monthly[m]/maxM)*90)+5;
+          return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">`
+            +`<div style="font-size:9px;color:var(--text-2);margin-bottom:2px;">${monthly[m]}</div>`
+            +`<div style="width:100%;background:var(--gold-dim, rgba(94,173,130,.4));border-radius:3px 3px 0 0;height:${h}px;"></div>`
+            +`<div style="font-size:9px;color:var(--text-3);margin-top:3px;">${m.slice(5)}</div>`
+            +'</div>';
+        }).join('')+'</div>';
+    }
+
+  }catch(e){console.error('loadAnalytics',e);}
+}
+
 // ── Moderation Review ─────────────────────────────────────────────────────
 async function loadFlaggedPhotos(){
   const wrap=document.getElementById('review-grid-wrap');
@@ -868,8 +1334,7 @@ function renderFlaggedPhotos(flagged){
   if(!flagged.length){
     wrap.innerHTML='<div class="review-empty"><i class="ti ti-shield-check" style="color:var(--green);"></i><br>No photos awaiting review. All uploads passed moderation.</div>';
     return;
-  }
-  wrap.innerHTML='<div class="review-grid">'+flagged.map(p=>{
+wrap.innerHTML='<div class="review-grid">'+flagged.map(p=>{
     const labels=JSON.parse(p.moderationLabels||'[]');
     const labelStr=labels.map(l=>l.name+' ('+l.confidence+'%)').join(', ');
     return '<div class="review-card">'
@@ -1025,6 +1490,7 @@ function resetUpload(){
 }
 
 /* === Gallery === */
+/* === Gallery === */
 async function loadGallery(){
   if(!currentIdToken)return;
   const grid=document.getElementById('galleryGrid');
@@ -1047,12 +1513,46 @@ async function loadGallery(){
           <div class="gallery-meta">
             <span class="gallery-likes"><i class="ti ti-heart-filled"></i> ${p.likes||0}</span>
             <span>${(p.uploadedAt||p.uploadDate)?new Date(p.uploadedAt||p.uploadDate).toLocaleDateString():''}</span>
+            <button class="ec-btn${p.editorChoice?' active':''}" title="Editor's Choice" onclick="event.stopPropagation();toggleEditorChoice('${p.photoId}',${!!p.editorChoice})"><i class="ti ti-star${p.editorChoice?'-filled':''}"></i></button>
           </div>
         </div>
       </div>`;
     }).join('');
   }catch(err){grid.innerHTML=`<div class="gallery-empty"><i class="ti ti-alert-circle"></i> Failed: ${err.message}</div>`;}
 }
+// AWS Cert Note (DVA-C02): update_item with SET is a partial write -- only the
+// editorChoice attribute changes; the rest of the item is untouched.
+async function toggleEditorChoice(photoId, current){
+  if(!currentIdToken)return;
+  const next=!current;
+  const btns=document.querySelectorAll(`.ec-btn`);
+  btns.forEach(b=>{
+    if((b.getAttribute('onclick')||'').includes("'"+photoId+"'")){
+      b.classList.toggle('active',next);
+      b.querySelector('i').className='ti ti-star'+(next?'-filled':'');
+    }
+  });
+  try{
+    const r=await fetch(CONFIG.ApiBase+'/admin/editor-choice',{
+      method:'POST',
+      headers:{'Authorization':currentIdToken,'Content-Type':'application/json'},
+      body:JSON.stringify({photoId,editorChoice:next})
+    });
+    if(!r.ok)throw new Error(await r.text());
+    const photos=window._galleryPhotos||[];
+    const p=photos.find(x=>x.photoId===photoId);
+    if(p)p.editorChoice=next;
+  }catch(e){
+    btns.forEach(b=>{
+      if((b.getAttribute('onclick')||'').includes("'"+photoId+"'")){
+        b.classList.toggle('active',current);
+        b.querySelector('i').className='ti ti-star'+(current?'-filled':'');
+      }
+    });
+    console.error('EC toggle failed',e);
+  }
+}
+
 async function loadStats(){
   if(!currentIdToken)return;
   try{
@@ -1075,14 +1575,82 @@ function openLB(idx){
   const d=p.uploadedAt||p.uploadDate;
   document.getElementById('lbDate').textContent=d?'Uploaded '+new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
   document.getElementById('lbTags').innerHTML=(p.tags||[]).map(t=>`<span class="tag-chip">${t.Name||t}</span>`).join('');
-  // Reset re-process panel
+  // Reset panels
   lbSelectedEffects=new Set();
   document.querySelectorAll('#lbEffectsGrid .ec').forEach(el=>el.classList.remove('on'));
   document.getElementById('lbReprocess').classList.remove('open');
   document.getElementById('lbRpStatus').textContent='';
+  document.getElementById('lbAiFb').classList.remove('open');
+  document.getElementById('lbAiFb').innerHTML='';
+  _resetAudioPanel();
   document.getElementById('lb').classList.add('open');
 }
-function closeLB(){document.getElementById('lb').classList.remove('open');_lbPhoto=null;}
+function closeLB(){_resetAudioPanel();document.getElementById('lb').classList.remove('open');_lbPhoto=null;}
+
+/* === AI Composition Feedback === */
+// AWS Cert Note (MLA-C01): Bedrock InvokeModel is billed per input+output token.
+// We cache the result in DynamoDB so the model is only called once per photo.
+function toggleAiFeedback(){
+  const panel=document.getElementById('lbAiFb');
+  if(panel.classList.contains('open')){
+    panel.classList.remove('open');
+    return;
+  }
+  // Close reprocess panel if open
+  document.getElementById('lbReprocess').classList.remove('open');
+  panel.classList.add('open');
+  // If already rendered with content, just show it
+  if(panel.innerHTML.trim()) return;
+  loadCompositionFeedback();
+}
+
+async function loadCompositionFeedback(){
+  const p=_lbPhoto;
+  if(!p||!currentIdToken)return;
+  const panel=document.getElementById('lbAiFb');
+  panel.innerHTML='<div class="aifb-loading"><i class="ti ti-sparkles"></i> Analysing composition with Claude Haiku…</div>';
+  try{
+    const r=await fetch(CONFIG.ApiBase+'/composition-feedback?photoId='+encodeURIComponent(p.photoId),
+    const {feedback:fb,cached}=await r.json();
+    _renderAiFeedback(panel,fb,cached);
+    // Update cached value on the in-memory photo object
+    p.compositionFeedback=fb;
+  }catch(err){
+    panel.innerHTML=`<div class="aifb-error"><i class="ti ti-alert-circle"></i> ${E(err.message)}</div>`;
+  }
+}
+
+function _renderAiFeedback(panel,fb,cached){
+  const score=fb.score??'—';
+  const summary=E(fb.summary||'');
+  const scoreColor=score>=8?'var(--green)':score>=5?'var(--accent)':'var(--red)';
+  const strengthsHtml=(fb.strengths||[]).map(s=>`<li>${E(s)}</li>`).join('');
+  const tipsHtml=(fb.improvements||[]).map(t=>`<li>${E(t)}</li>`).join('');
+  const elKeys={rule_of_thirds:'Rule of thirds',light:'Light',depth:'Depth / layers',balance:'Balance'};
+  const elementsHtml=Object.entries(elKeys).map(([k,label])=>{
+    const val=fb.elements&&fb.elements[k]?E(fb.elements[k]):'—';
+    return `<div class="aifb-el"><div class="aifb-el-key">${label}</div><div class="aifb-el-val">${val}</div></div>`;
+  }).join('');
+  panel.innerHTML=`
+    <div class="aifb-header">
+      <div class="aifb-score" style="color:${scoreColor}">${score}<span style="font-size:13px;font-weight:400;color:var(--text-2)">/10</span></div>
+      <div class="aifb-summary">${summary}</div>
+      ${cached?'<span class="aifb-badge">Cached</span>':'<span class="aifb-badge" style="color:var(--green)">Fresh</span>'}
+    </div>
+    <div class="aifb-cols">
+      <div class="aifb-block">
+        <div class="aifb-block-title">Strengths</div>
+        <ul class="aifb-list">${strengthsHtml||'<li>—</li>'}</ul>
+      </div>
+      <div class="aifb-block">
+        <div class="aifb-block-title">To improve</div>
+        <ul class="aifb-list">${tipsHtml||'<li>—</li>'}</ul>
+      </div>
+    </div>
+    <div class="aifb-elements">${elementsHtml}</div>
+    ${cached?'<div class="aifb-cached">Cached result — <a href="#" onclick="event.preventDefault();document.getElementById(\'lbAiFb\').innerHTML=\'\';loadCompositionFeedback();" style="color:var(--accent)">refresh</a></div>':''}`;
+}
+
 function toggleReprocess(){
   const panel=document.getElementById('lbReprocess');
   panel.classList.toggle('open');
@@ -1256,6 +1824,446 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLB();closeDelC
 buildEffectsGrid();
 showView('upload');
 tryRestoreSession();
+
+
+/* === Audio Story (voice note) ===
+ * AWS Cert Note (SAA-C03): MediaRecorder captures mic audio in the browser;
+ * the blob is PUT directly to S3 via a presigned URL — Lambda never proxies
+ * the bytes, keeping Lambda invocation cost near zero and avoiding the 10 MB
+ * API Gateway payload limit.  The presigned URL is generated by
+ * AudioStoryFunction and has a 15-minute TTL.
+ */
+let _audioRecorder    = null;   // MediaRecorder instance
+let _audioChunks      = [];     // accumulated Blob chunks
+let _audioBlob        = null;   // final recorded blob
+let _audioTimerInt    = null;   // setInterval handle
+let _audioSecs        = 0;      // elapsed recording seconds
+
+function _resetAudioPanel(){
+  _stopTimer();
+  if(_audioRecorder && _audioRecorder.state !== 'inactive'){
+    try{_audioRecorder.stop();}catch(e){}
+  }
+  _audioRecorder=null;_audioChunks=[];_audioBlob=null;
+  const panel=document.getElementById('lbAudio');
+  if(panel){panel.classList.remove('open');panel.innerHTML='';}
+}
+
+function toggleAudioPanel(){
+  const panel=document.getElementById('lbAudio');
+  if(!panel)return;
+  if(panel.classList.contains('open')){_resetAudioPanel();return;}
+  panel.classList.add('open');
+  _renderAudioIdle();
+}
+
+function _renderAudioIdle(){
+  const p=document.getElementById('lbAudio');if(!p)return;
+  const hasExisting=_lbPhoto&&_lbPhoto.audioStoryKey;
+  p.innerHTML=`
+    <div style="font-size:12.5px;font-weight:600;margin-bottom:10px;color:var(--text-2)">
+      VOICE NOTE ${hasExisting?'<span class=\"has-audio-badge\"><i class=\"ti ti-microphone\"></i> Recorded</span>':''}
+    </div>
+    <div class="audio-rec-row">
+      <button class="audio-rec-btn idle" id="audioToggleBtn" onclick="toggleRecording()">
+        <i class="ti ti-microphone"></i> Record
+      </button>
+      <span class="audio-timer" id="audioTimer"></span>
+    </div>
+    ${hasExisting?`<div class="audio-del-row">
+      <span class="audio-del-hint">A voice note already exists for this photo.</span>
+      <button class="btn btn-danger btn-sm" onclick="deleteAudioStory()">
+        <i class="ti ti-trash"></i> Delete note
+      </button>
+    </div>`:''}
+    <div class="audio-status" id="audioStatus"></div>`;
+}
+
+function _stopTimer(){
+  if(_audioTimerInt){clearInterval(_audioTimerInt);_audioTimerInt=null;}
+  _audioSecs=0;
+}
+
+function _startTimer(){
+  _audioSecs=0;
+  _updateTimerDisplay();
+  _audioTimerInt=setInterval(()=>{
+    _audioSecs++;
+    _updateTimerDisplay();
+    if(_audioSecs>=300){toggleRecording();}  // auto-stop at 5 min
+  },1000);
+}
+
+function _updateTimerDisplay(){
+  const el=document.getElementById('audioTimer');
+  if(!el)return;
+  const m=Math.floor(_audioSecs/60).toString().padStart(2,'0');
+  const s=(_audioSecs%60).toString().padStart(2,'0');
+  el.textContent=`${m}:${s}`;
+}
+
+async function toggleRecording(){
+  if(_audioRecorder&&_audioRecorder.state==='recording'){
+    // Stop
+    _audioRecorder.stop();
+    _stopTimer();
+    return;
+  }
+  // Start
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    _audioChunks=[];
+    _audioBlob=null;
+    _audioRecorder=new MediaRecorder(stream,{mimeType:'audio/webm'});
+    _audioRecorder.ondataavailable=e=>{if(e.data.size>0)_audioChunks.push(e.data);};
+    _audioRecorder.onstop=()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      _audioBlob=new Blob(_audioChunks,{type:'audio/webm'});
+      _renderAudioPreview();
+    };
+    _audioRecorder.start();
+    _startTimer();
+    const btn=document.getElementById('audioToggleBtn');
+    if(btn){btn.className='audio-rec-btn recording';btn.innerHTML='<i class="ti ti-square"></i> Stop';}
+  }catch(err){
+    const st=document.getElementById('audioStatus');
+    if(st){st.textContent='Microphone access denied: '+err.message;st.className='audio-status err';}
+  }
+}
+
+function _renderAudioPreview(){
+  const p=document.getElementById('lbAudio');if(!p||!_audioBlob)return;
+  const url=URL.createObjectURL(_audioBlob);
+  const mins=Math.floor(_audioSecs/60),secs=_audioSecs%60;
+  p.innerHTML=`
+    <div style="font-size:12.5px;font-weight:600;margin-bottom:10px;color:var(--text-2)">VOICE NOTE PREVIEW</div>
+    <div class="audio-preview-wrap">
+      <audio controls src="${url}"></audio>
+    </div>
+    <div style="font-size:11.5px;color:var(--text-2);margin-top:6px">
+      Duration: ${mins>0?mins+'m ':''} ${secs}s
+    </div>
+    <div class="audio-save-row">
+      <button class="btn btn-primary" onclick="saveAudioStory()">
+        <i class="ti ti-upload"></i> Save voice note
+      </button>
+      <button class="btn btn-ghost" onclick="_renderAudioIdle()">
+        <i class="ti ti-arrow-back"></i> Re-record
+      </button>
+    </div>
+    <div class="audio-status" id="audioStatus"></div>`;
+}
+
+async function saveAudioStory(){
+  if(!_lbPhoto||!_audioBlob)return;
+  const st=document.getElementById('audioStatus');
+  if(st){st.textContent='Uploading…';st.className='audio-status';}
+  try{
+    const tok=await getToken();
+    // 1. Get presigned PUT URL
+    const r=await fetch(CONFIG.ApiBase+'/audio-story',{
+      method:'POST',
+      headers:{Authorization:tok,'Content-Type':'application/json'},
+      body:JSON.stringify({photoId:_lbPhoto.photoId,contentType:'audio/webm'}),
+    });
+    if(!r.ok){const e=await r.json();throw new Error(e.error||r.status);}
+    const {uploadUrl}=await r.json();
+
+    // 2. PUT blob directly to S3 (no Lambda proxy — cost-conscious design)
+    const put=await fetch(uploadUrl,{method:'PUT',body:_audioBlob,headers:{'Content-Type':'audio/webm'}});
+    if(!put.ok)throw new Error('S3 upload failed: '+put.status);
+
+    if(st){st.textContent='Voice note saved!';st.className='audio-status ok';}
+    // Mark photo as having audio so badge shows on re-open
+    if(_lbPhoto)_lbPhoto.audioStoryKey=`audio/${_lbPhoto.photoId}.webm`;
+  }catch(err){
+    if(st){st.textContent='Save failed: '+err.message;st.className='audio-status err';}
+  }
+}
+
+async function deleteAudioStory(){
+  if(!_lbPhoto)return;
+  const st=document.getElementById('audioStatus');
+  if(st){st.textContent='Deleting…';st.className='audio-status';}
+  try{
+    const tok=await getToken();
+    const r=await fetch(CONFIG.ApiBase+'/audio-story?photoId='+encodeURIComponent(_lbPhoto.photoId),{
+      method:'DELETE',headers:{Authorization:tok},
+    });
+    if(!r.ok){const e=await r.json();throw new Error(e.error||r.status);}
+    if(_lbPhoto)delete _lbPhoto.audioStoryKey;
+    _renderAudioIdle();
+    const st2=document.getElementById('audioStatus');
+    if(st2){st2.textContent='Voice note deleted.';st2.className='audio-status ok';}
+  }catch(err){
+    if(st){st.textContent='Delete failed: '+err.message;st.className='audio-status err';}
+  }
+}
+
+
+
+/* ===== Series / Essay mode =====
+ * AWS Cert Note (DVA-C02): Series records use a GSI (photographerId-createdAt-index)
+ * so list queries are O(result-set) Queries, not O(table) Scans.
+ * Photo metadata is fetched via BatchGetItem — one API call for up to 100 items.
+ */
+
+let _editingSeriesId = null;   // null = create mode, set = edit mode
+let _smSelected = new Set();   // photo IDs currently selected in the picker
+let _smOrder    = [];          // ordered array of selected photoIds
+
+// ─ List ─────────────────────────────────────────────────────────────────────
+async function loadSeriesList() {
+  const grid = document.getElementById('seriesGrid');
+  if (!grid) return;
+  grid.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:20px 0">Loading…</div>';
+  try {
+    const tok  = await getToken();
+    const user = await getCachedProfile();
+    if (!user || !user.photographerId) {
+      grid.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:20px 0">Sign in to manage series.</div>';
+      return;
+    }
+    const r = await fetch(`${CONFIG.ApiBase}/series?photographerId=${encodeURIComponent(user.photographerId)}`, {
+      headers: { Authorization: tok }
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const { series } = await r.json();
+    if (!series || !series.length) {
+      grid.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:20px 0">No series yet. Create your first one!</div>';
+      return;
+    }
+    grid.innerHTML = series.map(s => _seriesCard(s)).join('');
+  } catch (e) {
+    grid.innerHTML = `<div style="color:var(--red);font-size:13px">${e.message}</div>`;
+  }
+}
+
+function _seriesCard(s) {
+  return `<div class="series-card">
+    <div class="series-cover">
+      ${s.coverPhotoId ? `<img src="" data-series-cover="${s.seriesId}" alt="">` : `<div class="series-cover-empty"><i class="ti ti-photos"></i></div>`}
+    </div>
+    <div class="series-info">
+      <div class="series-title">${_esc(s.title)}</div>
+      <div class="series-meta">${s.photoCount} photo${s.photoCount!==1?'s':''} &middot; ${_fmtDate(s.createdAt)}</div>
+      ${s.description ? `<div class="series-meta" style="margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(s.description)}</div>` : ''}
+      <div class="series-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openEditSeries('${s.seriesId}')"><i class="ti ti-edit"></i> Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDeleteSeries('${s.seriesId}', '${_esc(s.title).replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ─ Cover thumbnail lazy-load ─────────────────────────────────────────────────
+function _loadSeriesCovers() {
+  document.querySelectorAll('[data-series-cover]').forEach(async img => {
+    const sid = img.dataset.seriesCover;
+    const grid = document.getElementById('seriesGrid');
+    // Find cover URL from cached series data
+    const card = img.closest('.series-card');
+    if (!card) return;
+    // We need the cover photo's thumbnail. Fetch the series to get the URL.
+    try {
+      const tok = await getToken();
+      const r = await fetch(`${CONFIG.ApiBase}/series?seriesId=${encodeURIComponent(sid)}`, { headers: { Authorization: tok } });
+      if (!r.ok) return;
+      const data = await r.json();
+      const photos = data.photos || [];
+      const cover = photos.find(p => p.photoId === data.coverPhotoId) || photos[0];
+      if (cover && cover.thumbnailUrl) {
+        img.src = cover.thumbnailUrl;
+        img.onerror = () => { img.style.display = 'none'; };
+      }
+    } catch (e) { /* ignore */ }
+  });
+}
+
+// ─ Create / Edit modal ────────────────────────────────────────────────────────
+async function openCreateSeries() {
+  _editingSeriesId = null;
+  _smSelected = new Set();
+  _smOrder    = [];
+  document.getElementById('smTitle').textContent = 'New Series';
+  document.getElementById('smTitleInput').value  = '';
+  document.getElementById('smDescInput').value   = '';
+  document.getElementById('smStatus').textContent = '';
+  document.getElementById('smStatus').className  = 'sm-status';
+  await _buildPicker();
+  document.getElementById('seriesModal').classList.add('open');
+}
+
+async function openEditSeries(seriesId) {
+  _editingSeriesId = seriesId;
+  document.getElementById('smTitle').textContent  = 'Edit Series';
+  document.getElementById('smStatus').textContent = 'Loading…';
+  document.getElementById('smStatus').className   = 'sm-status';
+  document.getElementById('seriesModal').classList.add('open');
+  try {
+    const tok = await getToken();
+    const r   = await fetch(`${CONFIG.ApiBase}/series?seriesId=${encodeURIComponent(seriesId)}`, { headers: { Authorization: tok } });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    document.getElementById('smTitleInput').value = data.title || '';
+    document.getElementById('smDescInput').value  = data.description || '';
+    _smOrder    = [...(data.photoIds || [])];
+    _smSelected = new Set(_smOrder);
+    await _buildPicker();
+    _renderOrder();
+    document.getElementById('smStatus').textContent = '';
+  } catch (e) {
+    document.getElementById('smStatus').textContent = 'Load error: ' + e.message;
+    document.getElementById('smStatus').className = 'sm-status err';
+  }
+}
+
+async function _buildPicker() {
+  const picker = document.getElementById('smPicker');
+  picker.innerHTML = '<div style="font-size:12px;color:var(--text-2)">Loading photos…</div>';
+  try {
+    const tok    = await getToken();
+    const r      = await fetch(`${CONFIG.ApiBase}/list-images?limit=100`, { headers: { Authorization: tok } });
+    if (!r.ok) throw new Error(await r.text());
+    const { photos } = await r.json();
+    if (!photos || !photos.length) {
+      picker.innerHTML = '<div style="font-size:12px;color:var(--text-2)">No photos in library yet.</div>';
+      return;
+    }
+    picker.innerHTML = photos.map(p => `
+      <div class="sm-pick-item${_smSelected.has(p.photoId) ? ' selected' : ''}"
+           id="smpi-${p.photoId}"
+           onclick="togglePickPhoto('${p.photoId}', '${_esc(p.title||p.fileName||p.photoId)}')">
+        <img src="${p.thumbnailUrl||''}" alt="${_esc(p.title||'')}">
+        <div class="sm-pick-check"><i class="ti ti-check"></i></div>
+      </div>`).join('');
+  } catch (e) {
+    picker.innerHTML = `<div style="font-size:12px;color:var(--red)">${e.message}</div>`;
+  }
+}
+
+function togglePickPhoto(photoId, title) {
+  if (_smSelected.has(photoId)) {
+    _smSelected.delete(photoId);
+    _smOrder = _smOrder.filter(id => id !== photoId);
+  } else {
+    _smSelected.add(photoId);
+    _smOrder.push(photoId);
+  }
+  const el = document.getElementById('smpi-' + photoId);
+  if (el) el.classList.toggle('selected', _smSelected.has(photoId));
+  _renderOrder();
+}
+
+function _renderOrder() {
+  const container = document.getElementById('smOrder');
+  if (!container) return;
+  if (!_smOrder.length) {
+    container.innerHTML = '<span style="font-size:11.5px;color:var(--text-3)">No photos selected yet</span>';
+    return;
+  }
+  container.innerHTML = _smOrder.map((id, i) =>
+    `<div class="sm-order-chip" draggable="true"
+         ondragstart="event.dataTransfer.setData('text/plain','${i}')"
+         ondragover="event.preventDefault()"
+         ondrop="_dropOrder(event,${i})">
+       <i class="ti ti-grip-vertical"></i>
+       <span style="max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i+1}</span>
+     </div>`).join('');
+}
+
+function _dropOrder(event, toIdx) {
+  event.preventDefault();
+  const fromIdx = parseInt(event.dataTransfer.getData('text/plain'));
+  if (isNaN(fromIdx) || fromIdx === toIdx) return;
+  const item = _smOrder.splice(fromIdx, 1)[0];
+  _smOrder.splice(toIdx, 0, item);
+  _renderOrder();
+}
+
+function closeSeriesModal() {
+  document.getElementById('seriesModal').classList.remove('open');
+  _editingSeriesId = null;
+}
+
+async function saveSeries() {
+  const title = document.getElementById('smTitleInput').value.trim();
+  const desc  = document.getElementById('smDescInput').value.trim();
+  const st    = document.getElementById('smStatus');
+  if (!title) { st.textContent = 'Title is required.'; st.className = 'sm-status err'; return; }
+
+  const btn = document.getElementById('smSaveBtn');
+  btn.disabled = true;
+  st.textContent = 'Saving…'; st.className = 'sm-status';
+
+  try {
+    const tok  = await getToken();
+    const user = await getCachedProfile();
+    if (!user || !user.photographerId) throw new Error('Not signed in');
+
+    const payload = {
+      title,
+      description:    desc,
+      photoIds:       _smOrder,
+      coverPhotoId:   _smOrder[0] || '',
+      photographerId: user.photographerId,
+    };
+
+    let url, method;
+    if (_editingSeriesId) {
+      url = CONFIG.ApiBase + '/series';
+      method = 'PUT';
+      payload.seriesId = _editingSeriesId;
+    } else {
+      url    = CONFIG.ApiBase + '/series';
+      method = 'POST';
+    }
+
+    const r = await fetch(url, {
+      method,
+      headers: { Authorization: tok, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.error || r.status); }
+    st.textContent = 'Saved!'; st.className = 'sm-status ok';
+    setTimeout(() => { closeSeriesModal(); loadSeriesList(); }, 700);
+  } catch (e) {
+    st.textContent = 'Error: ' + e.message; st.className = 'sm-status err';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function confirmDeleteSeries(seriesId, title) {
+  if (!confirm(`Delete series "${title}"? The photos themselves will not be deleted.`)) return;
+  try {
+    const tok = await getToken();
+    const r   = await fetch(`${CONFIG.ApiBase}/series?seriesId=${encodeURIComponent(seriesId)}`, {
+      method: 'DELETE', headers: { Authorization: tok },
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.error || r.status); }
+    loadSeriesList();
+  } catch (e) {
+    alert('Delete failed: ' + e.message);
+  }
+}
+
+function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _fmtDate(iso) { try { return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch{ return ''; } }
+
+// Helper: cache the current user's profile (photographerId etc.)
+let _cachedProfile = null;
+async function getCachedProfile() {
+  if (_cachedProfile) return _cachedProfile;
+  try {
+    const tok = await getToken();
+    const r   = await fetch(CONFIG.ApiBase + '/profile', { headers: { Authorization: tok } });
+    if (!r.ok) return null;
+    _cachedProfile = await r.json();
+  } catch { return null; }
+  return _cachedProfile;
+}
+
 </script>
 </body>
 </html>

@@ -1,10 +1,6 @@
-# 📸 Serverless Photo Galleria
+# 🖼️ Galleria — Serverless Fine Art Photography Marketplace
 
-A production-grade, multi-region, event-driven photo marketplace built on AWS using the Serverless Application Model (SAM). The platform connects professional photographers with commercial buyers through two isolated web portals, backed by a fully serverless infrastructure with enterprise-grade security, GDPR compliance, and global scalability.
-
-**Live Demo:**
-- 🎨 [Photographer Admin Portal](https://dps7ixpjebpsu.cloudfront.net) — upload, manage, and monetise your photo library
-- 🛍️ [Customer Galleria Portal](https://d1zup6wc9h9uwc.cloudfront.net) — browse, licence, and download professional photography
+A production-grade, multi-region, event-driven fine art photography marketplace built on AWS using the Serverless Application Model (SAM). The platform connects professional photographers with collectors and commercial buyers through two isolated web portals, backed by a fully serverless infrastructure with enterprise-grade security, GDPR compliance, AI-powered discovery, and global scalability.
 
 ---
 
@@ -57,8 +53,42 @@ The system splits responsibilities into two strictly isolated tiers — the **Ad
 | Security | AWS WAFv2 (rate limiting, geo-blocking) |
 | Events | Amazon EventBridge (cross-region pub/sub) |
 | Payments | Stripe (checkout sessions + webhook verification) |
-| Monitoring | CloudWatch Alarms, CloudTrail audit logging |
+| AI / ML | Amazon Bedrock (Claude Haiku — composition feedback, Titan Embeddings — semantic search) |
+| Image Processing | Pillow, imagehash (pHash fingerprinting), piexif (EXIF GPS + copyright) |
+| i18n | AWS Translate (auto-generated translations, runtime language switcher) |
+| Monitoring | CloudWatch Alarms, CloudTrail audit logging, AWS X-Ray distributed tracing |
 | Compliance | GDPR Art. 7, 17, 20, 30 (consent, erasure, portability) |
+
+---
+
+## ✨ Feature Highlights
+
+### Photographer Portal (index.html)
+- **Photo upload** with drag-and-drop, effect presets (B&W, cinematic, golden hour, etc.), and category tagging
+- **AI composition feedback** — instant critique via Bedrock Claude Haiku at upload time, cached in DynamoDB
+- **Voice story recording** — attach a MediaRecorder audio note to any photo; stored in S3, streamed via presigned URL
+- **Series / essay mode** — group photos into ordered narratives with cover image and description
+- **Editor's Choice** — admin can mark standout photos for a curated discovery filter
+- **Earnings dashboard** — revenue analytics with per-photo breakdown and refund management
+- **X-Ray tracing** — every Lambda annotated for per-photo, per-photographer trace filtering
+
+### Customer Portal (customer.html)
+- **Semantic search** — natural-language queries embedded via Titan Embeddings, cosine re-ranked
+- **Category & mood filters** — browse by subject (landscape, portrait, etc.) or dominant colour mood
+- **Geolocation map** — Leaflet.js map populated from GPS EXIF metadata extracted at ingest
+- **Ambient lightbox** — background colour shifts to match the dominant palette of the viewed photo
+- **Print wall mockup** — interactive room-scene preview before purchase
+- **Series browse** — explore photographer essay collections with sequential photo viewer
+- **Audio playback** — listen to photographer voice notes directly in the lightbox
+- **My Collection** — authenticated buyers see all purchased photos with re-download links
+- **Follow / feed** — follow photographers, get a personalised feed of new uploads
+- **Multi-language** — language switcher with AWS Translate–generated translations (EN, FR, DE, ES, PT, JA, ZH)
+
+### Infrastructure
+- **pHash fingerprinting** — perceptual hash stored at ingest; similarity search endpoint finds visually near-duplicate images
+- **DynamoDB GlobalTables** — active-active replication across us-east-1 and eu-west-1
+- **Stripe idempotency** — webhook puts use `attribute_not_exists` condition to prevent duplicate order records
+- **Collector table** — every purchase written to `CollectionsTable` (buyerId + photoId composite key) for instant My Collection queries
 
 ---
 
@@ -119,12 +149,19 @@ serverless-photo-galleria/
 │   ├── resize/                   # Image resizing
 │   ├── rotate/                   # Image rotation
 │   ├── search/                   # Photo search with pagination
-│   ├── stripe_webhook/           # Stripe payment webhook handler
-│   ├── tagging/                  # AI-powered photo tagging
+│   ├── stripe_webhook/           # Stripe payment webhook + collection recording
+│   ├── tagging/                  # AI tagging, pHash, palette, GPS EXIF extraction
 │   ├── trigger_pipeline/         # Step Functions pipeline trigger
 │   ├── unlike/                   # Photo unfavouriting
 │   ├── upload_url/               # Upload URL orchestration
-│   └── watermark/                # Photographer watermark application
+│   ├── watermark/                # Watermark application + EXIF copyright embed
+│   ├── audio_story/              # Voice note presign (PUT) + delete
+│   ├── collector/                # Buyer collection viewer (GET /my-collection)
+│   ├── composition_feedback/     # AI composition critique via Bedrock Claude Haiku
+│   ├── feed/                     # Personalised photographer follow feed
+│   ├── follow/                   # Follow / unfollow photographers
+│   ├── series/                   # Photo essay series CRUD
+│   └── similar/                  # pHash perceptual similarity search
 │
 ├── statemachine/
 │   └── photo_pipeline.asl.json   # Step Functions state machine definition
@@ -188,27 +225,17 @@ aws cloudfront create-invalidation --distribution-id [PURCHASER-DIST-ID] --paths
 
 ---
 
-## 🔄 Core Data Flows
-
-**Photo Upload & Processing**
-Photographer logs in → requests pre-signed upload URL → browser pushes master file directly to S3 Originals bucket → S3 event triggers Step Functions → state machine fans out to parallel Lambda workers (blur, crop, resize, rotate, watermark, compress) → processed thumbnails land in private Thumbs bucket → metadata written to DynamoDB.
-
-**Customer Browse & Purchase**
-Customer authenticates via isolated Cognito pool → `GET /search` returns paginated, signed thumbnail URLs → customer adds to cart → Stripe checkout session created → payment webhook confirms purchase → order recorded in DynamoDB → `POST /get-download-url` issues 300-second pre-signed URL for full-resolution download.
-
-**Cross-Region Event Propagation**
-Purchase and upload events are published to EventBridge custom bus → events replicate to secondary region bus → regional Lambda subscribers process events locally, ensuring consistent state across DynamoDB GlobalTables in both regions.
-
----
-
 ## 📊 DynamoDB Tables (GlobalTables — Active-Active Multi-Region)
 
 | Table | Purpose |
 |---|---|
-| `PhotoMetadataTable` | Photo catalogue, tags, pricing, photographer ownership |
+| `PhotoMetadataTable` | Photo catalogue, tags, pricing, pHash, palette, GPS, photographer ownership |
 | `ShoppingCartTable` | Active customer carts |
 | `PhotographerProfileTable` | Photographer profiles, watermark config, earnings |
 | `OrdersTable` | Completed purchase records |
+| `CollectionsTable` | Buyer collection (buyerId PK + photoId SK — instant My Collection queries) |
+| `FollowsTable` | Photographer follow relationships + feed index |
+| `SeriesTable` | Photo essay series with GSI on photographerId |
 | `UserConsentTable` | GDPR consent records (Art. 7) |
 | `AuditLogTable` | Append-only compliance audit log (Art. 30, 7-year TTL) |
 
@@ -219,7 +246,7 @@ Purchase and upload events are published to EventBridge custom bus → events re
 The template supports active-active deployment across two regions. The primary region (`us-east-1`) deploys all resources. The secondary region (`eu-west-1`) is deployed by passing outputs from the primary as parameters:
 
 ```powershell
-sam deploy --config-env eu-west-1 \
+sam deploy --config-env euwest1 \
   --parameter-overrides \
     PrimaryGalleriaUserPoolArn=[UserPoolArn from primary] \
     PrimaryCustomerUserPoolArn=[CustomerUserPoolArn from primary] \
@@ -228,3 +255,32 @@ sam deploy --config-env eu-west-1 \
 ```
 
 DynamoDB GlobalTables automatically replicate data between regions with sub-second latency.
+
+---
+
+## 🗑️ Teardown
+
+To stop all AWS charges, delete the stack:
+
+```powershell
+# Primary region
+sam delete --config-env default --region us-east-1
+
+# Secondary region (if deployed)
+sam delete --config-env euwest1 --region eu-west-1
+```
+
+---
+
+## 🎓 AWS Certification Notes
+
+The codebase is annotated with inline `# AWS Cert Note` comments covering SAA-C03 and DVA-C02 exam topics including:
+- DynamoDB GlobalTables, GSI design, BatchGetItem, conditional writes
+- S3 presigned URLs, OAC, lifecycle policies
+- CloudFront distributions, OAC vs OAI
+- Step Functions Express Workflows
+- EventBridge cross-region routing
+- Cognito user pool vs identity pool
+- X-Ray patch_all(), annotations vs metadata
+- Lambda cold starts, environment variables, layers
+- WAFv2 rate limiting and geo-blocking patterns

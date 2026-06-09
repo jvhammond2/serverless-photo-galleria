@@ -1,15 +1,19 @@
 """
 ProfileFunction — handles:
-  GET  /profile        (no auth)             — public photographer profile
-  PUT  /profile        (PhotographerCognito) — save/update profile
-  GET  /admin/flagged  (PhotographerCognito) — list quarantined photos for review
-  POST /admin/approve  (PhotographerCognito) — approve a flagged photo (clear status)
+  GET  /profile               (no auth)             — public photographer profile
+  PUT  /profile               (PhotographerCognito) — save/update profile
+  GET  /admin/flagged         (PhotographerCognito) — list quarantined photos for review
+  POST /admin/approve         (PhotographerCognito) — approve a flagged photo (clear status)
+  POST /admin/editor-choice   (PhotographerCognito) — toggle editorChoice flag on a photo
 """
 import json
 import os
 import boto3
 from datetime import datetime, timezone
 from boto3.dynamodb.conditions import Attr
+
+from aws_xray_sdk.core import patch_all, xray_recorder
+patch_all()
 
 ddb = boto3.resource("dynamodb")
 s3  = boto3.client("s3")
@@ -82,6 +86,36 @@ def handler(event, context):
         )
         return {"statusCode": 200, "headers": CORS, "body": json.dumps({"approved": True})}
 
+    # ── POST /admin/editor-choice ─────────────────────────────────────────
+    # Toggle the editorChoice boolean on any photo.  The flag is read by the
+    # search Lambda when ?sort=editors_choice is requested.
+    #
+    # AWS Cert Note (DVA-C02): update_item with SET is a partial write — only
+    # the named attribute is changed; every other field is untouched.  This is
+    # cheaper and safer than put_item (which would overwrite the whole item).
+    if method == "POST" and path.endswith("/admin/editor-choice"):
+        try:
+            body     = json.loads(event.get("body") or "{}")
+            photo_id = body.get("photoId", "").strip()
+            enabled  = bool(body.get("editorChoice", False))
+        except Exception:
+            return _err(400, "Invalid JSON")
+        if not photo_id:
+            return _err(400, "photoId required")
+
+        table = ddb.Table(os.environ["METADATA_TABLE"])
+        table.update_item(
+            Key={"photoId": photo_id},
+            UpdateExpression="SET editorChoice = :v",
+            ExpressionAttributeValues={":v": enabled},
+        )
+        _annotate(photoId=photo_id, editorChoice=str(enabled))
+        return {
+            "statusCode": 200,
+            "headers":    CORS,
+            "body":       json.dumps({"photoId": photo_id, "editorChoice": enabled}),
+        }
+
     # ── GET /profile ──────────────────────────────────────────────────────
     if method == "GET":
         resp    = ddb.Table(os.environ["PROFILE_TABLE"]).get_item(Key={"profileId": PROFILE_PK})
@@ -126,3 +160,13 @@ def handler(event, context):
 
 def _err(code, msg):
     return {"statusCode": code, "headers": CORS, "body": json.dumps({"error": msg})}
+
+
+def _annotate(**kwargs):
+    try:
+        seg = xray_recorder.current_subsegment() or xray_recorder.current_segment()
+        if seg:
+            for k, v in kwargs.items():
+                seg.put_annotation(k, str(v))
+    except Exception:
+        pass

@@ -11,6 +11,8 @@ import uuid
 from datetime import datetime, timezone
 
 import boto3
+from aws_xray_sdk.core import patch_all, xray_recorder
+patch_all()
 
 CONFIDENCE_THRESHOLD = 80.0
 
@@ -23,6 +25,8 @@ def handler(event, context):
     s3_key          = event["s3Key"]
     actions         = event.get("actions", [])
     photographer_id = event.get("photographerId", "")
+    category        = event.get("category", "other")
+    _annotate(s3Key=s3_key, photographerId=photographer_id, category=category)
 
     try:
         resp   = rek.detect_moderation_labels(
@@ -34,19 +38,20 @@ def handler(event, context):
         # On Rekognition error, let the photo through (fail-open) to avoid
         # blocking legitimate uploads due to transient AWS issues.
         print(f"Moderation check error (fail-open): {e}")
-        return _pass_through(s3_bucket, s3_key, actions, photographer_id)
+        return _pass_through(s3_bucket, s3_key, actions, photographer_id, category)
 
     if not labels:
         # Clean — no moderation labels detected
-        return _pass_through(s3_bucket, s3_key, actions, photographer_id)
+        return _pass_through(s3_bucket, s3_key, actions, photographer_id, category)
 
     # Flagged — record in DynamoDB and stop the pipeline
     flagged_labels = [
         {"name": lbl["Name"], "confidence": round(lbl["Confidence"], 1)}
         for lbl in labels
     ]
-    photo_id  = str(uuid.uuid4())
-    file_name = s3_key.split("/")[-1]
+    photo_id   = str(uuid.uuid4())
+    file_name  = s3_key.split("/")[-1]
+    now_iso    = datetime.now(timezone.utc).isoformat()
 
     table = ddb.Table(os.environ["METADATA_TABLE"])
     table.put_item(Item={
@@ -55,7 +60,9 @@ def handler(event, context):
         "originalKey":      s3_key,
         "thumbnailKey":     "",
         "previewKey":       "",
-        "uploadDate":       datetime.now(timezone.utc).isoformat(),
+        "uploadDate":       now_iso,
+        "uploadedAt":       now_iso,      # GSI sort key for category-uploadedAt-index
+        "category":         category,     # GSI partition key
         "likes":            0,
         "tags":             [],
         "moderationStatus": "flagged",
@@ -64,6 +71,7 @@ def handler(event, context):
     })
 
     print(f"Photo {photo_id} QUARANTINED — labels: {flagged_labels}")
+    _annotate(photoId=photo_id, moderated="true")
     return {
         "s3Bucket":       s3_bucket,
         "s3Key":          s3_key,
@@ -71,14 +79,27 @@ def handler(event, context):
         "moderated":      True,
         "photoId":        photo_id,
         "photographerId": photographer_id,
+        "category":       category,
     }
 
 
-def _pass_through(s3_bucket, s3_key, actions, photographer_id=""):
+def _pass_through(s3_bucket, s3_key, actions, photographer_id="", category="other"):
+    _annotate(moderated="false")
     return {
         "s3Bucket":       s3_bucket,
         "s3Key":          s3_key,
         "actions":        actions,
         "moderated":      False,
         "photographerId": photographer_id,
+        "category":       category,
     }
+
+
+def _annotate(**kwargs):
+    try:
+        seg = xray_recorder.current_subsegment() or xray_recorder.current_segment()
+        if seg:
+            for k, v in kwargs.items():
+                seg.put_annotation(k, str(v))
+    except Exception:
+        pass

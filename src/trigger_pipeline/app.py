@@ -2,7 +2,7 @@
 TriggerPipelineFunction — src/trigger_pipeline/app.py
 ------------------------------------------------------
 POST /process
-  Body: { "s3Key": "photo.jpg", "effects": ["bw","sharp"], "limitedEdition": false }
+  Body: { "s3Key": "photo.jpg", "effects": ["bw","sharp"], "limitedEdition": false, "category": "landscape" }
 
 Why a Lambda wrapper instead of direct API → Step Functions integration?
   SAM's built-in StateMachine API event uses an AWS service integration that
@@ -19,6 +19,13 @@ import boto3
 import json
 import os
 import uuid
+
+# AWS Cert Note (DVA-C02 / SAA-C03): X-Ray is pre-installed in the Lambda
+# Python runtime — no requirements.txt entry needed.  patch_all() wraps
+# every boto3 client/resource so SDK calls appear as subsegments
+# automatically in the service map.
+from aws_xray_sdk.core import patch_all, xray_recorder
+patch_all()
 
 sfn = boto3.client("stepfunctions")
 
@@ -69,6 +76,18 @@ def handler(event, context):
         return {"statusCode": 400, "headers": HEADERS,
                 "body": json.dumps({"error": "s3Key is required"})}
 
+    # Validate category — must be one of the 30 allowed slugs (or empty → "other")
+    VALID_CATEGORIES = {
+        "abstract", "aerial", "animals", "bw", "boudoir", "celebrities",
+        "city", "commercial", "concert", "family", "fashion", "film",
+        "fineart", "food", "journalism", "landscape", "macro", "nature",
+        "night", "other", "people", "performing", "sport", "stilllife",
+        "street", "transportation", "travel", "underwater", "urbex", "wedding",
+    }
+    category = (body.get("category") or "other").strip().lower()
+    if category not in VALID_CATEGORIES:
+        category = "other"
+
     # Build ordered, deduplicated action list from selected effects
     effects = body.get("effects", [])
     seen, actions = set(), []
@@ -83,23 +102,40 @@ def handler(event, context):
         "s3Key":          s3_key,
         "actions":        actions,
         "photographerId": _photographer_id(event),
+        "category":       category,
     })
+
+    # Annotate the X-Ray segment so traces are searchable by photographer and
+    # category in the X-Ray console (filter: annotation.category = "landscape").
+    _annotate(photographerId=_photographer_id(event), category=category, s3Key=s3_key)
 
     try:
         resp = sfn.start_execution(
             stateMachineArn=STATE_MACHINE_ARN,
-            name=f"galleria-{uuid.uuid4()}",
+            name=str(uuid.uuid4()),
             input=execution_input,
         )
-    except Exception as exc:
-        return {"statusCode": 500, "headers": HEADERS,
-                "body": json.dumps({"error": str(exc)})}
+        execution_arn = resp["executionArn"]
+        print(f"[pipeline] Started execution: {execution_arn} for s3Key={s3_key}")
+        return {
+            "statusCode": 200,
+            "headers": HEADERS,
+            "body": json.dumps({"executionArn": execution_arn, "s3Key": s3_key}),
+        }
+    except Exception as e:
+        print(f"[pipeline] Step Functions error: {e}")
+        return {
+            "statusCode": 500,
+            "headers": HEADERS,
+            "body": json.dumps({"error": "Failed to start pipeline"}),
+        }
 
-    return {
-        "statusCode": 200,
-        "headers": HEADERS,
-        "body": json.dumps({
-            "executionArn": resp["executionArn"],
-            "message":      "Pipeline started — photo will appear in your library shortly",
-        }),
-    }
+
+def _annotate(**kwargs):
+    try:
+        seg = xray_recorder.current_subsegment() or xray_recorder.current_segment()
+        if seg:
+            for k, v in kwargs.items():
+                seg.put_annotation(k, str(v))
+    except Exception:
+        pass

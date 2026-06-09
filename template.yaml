@@ -187,7 +187,7 @@ Resources:
             return event;
         };
       Handler: index.handler
-      Runtime: nodejs18.x
+      Runtime: nodejs20.x
       Timeout: 5
       Environment:
         Variables:
@@ -274,6 +274,28 @@ Resources:
             Status: Enabled
             NoncurrentVersionExpirationInDays: 30
 
+
+  AudioStoriesS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-audio-${AWS::Region}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: ['GET', 'HEAD', 'PUT']
+            AllowedOrigins: ['*']
+            ExposedHeaders: ['ETag']
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldAudioVersions
+            Status: Enabled
+            ExpirationInDays: 365
+
   # ===========================================================================
   # DYNAMODB GLOBAL TABLES
   # Created ONLY from the primary-region stack (Condition: IsPrimaryRegion).
@@ -297,9 +319,22 @@ Resources:
       AttributeDefinitions:
         - AttributeName: photoId
           AttributeType: S
+        - AttributeName: category
+          AttributeType: S
+        - AttributeName: uploadedAt
+          AttributeType: S
       KeySchema:
         - AttributeName: photoId
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: category-uploadedAt-index
+          KeySchema:
+            - AttributeName: category
+              KeyType: HASH
+            - AttributeName: uploadedAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       Replicas:
         - Region: us-east-1
           PointInTimeRecoverySpecification:
@@ -434,6 +469,125 @@ Resources:
         Enabled: true
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
+
+  # ===========================================================================
+  # FOLLOWS TABLE
+  # Stores photographer follow relationships for the customer feed.
+  #
+  # Access patterns:
+  #   Follow a photographer  : PutItem  (followerId + followeeId)
+  #   Unfollow               : DeleteItem
+  #   Who does a user follow?: Query by followerId (PK)
+  #
+  # GlobalTable so follow state is consistent across both regions.
+  # PAY_PER_REQUEST — zero cost until the feature gets real traffic.
+  #
+  # AWS Cert Note (SAA-C03 / DVA-C02):
+  #   Composite PK (followerId HASH + followeeId RANGE) lets us use a single
+  #   Query to fetch all photographers a customer follows, and a GetItem to
+  #   check whether a specific follow relationship already exists — both O(1).
+  # ===========================================================================
+  FollowsTable:
+    Type: AWS::DynamoDB::GlobalTable
+    Condition: IsPrimaryRegion
+    Properties:
+      TableName: !Sub ${AWS::StackName}-follows-${AWS::AccountId}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: followerId
+          AttributeType: S
+        - AttributeName: followeeId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: followerId
+          KeyType: HASH
+        - AttributeName: followeeId
+          KeyType: RANGE
+      Replicas:
+        - Region: us-east-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+        - Region: eu-west-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+
+
+  # ===========================================================================
+  # DYNAMODB — SERIES TABLE (photo essay / narrative groups)
+  # PK: seriesId — unique UUID per series
+  # GSI: photographerId-createdAt-index — list all series for a photographer
+  # AWS Cert Note (DVA-C02): GSI partition key = photographerId lets you Query
+  # (not Scan) for all series by a given photographer — O(result set) vs O(table).
+  # ===========================================================================
+  SeriesTable:
+    Type: AWS::DynamoDB::GlobalTable
+    Condition: IsPrimaryRegion
+    Properties:
+      TableName: !Sub ${AWS::StackName}-series-${AWS::AccountId}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: seriesId
+          AttributeType: S
+        - AttributeName: photographerId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: seriesId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: photographerId-createdAt-index
+          KeySchema:
+            - AttributeName: photographerId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Replicas:
+        - Region: us-east-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+          GlobalSecondaryIndexes:
+            - IndexName: photographerId-createdAt-index
+        - Region: eu-west-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+          GlobalSecondaryIndexes:
+            - IndexName: photographerId-createdAt-index
+
+
+  # ===========================================================================
+  # DYNAMODB — COLLECTIONS TABLE (buyer purchased photos)
+  # PK: buyerId (Cognito sub), SK: photoId — one item per purchase
+  # Written by StripeWebhookFunction on checkout.session.completed.
+  # No GSI needed for MVP — we always query by buyerId only.
+  # AWS Cert Note (DVA-C02): composite key (PK+SK) lets us store multiple
+  # photos per buyer without duplication and query all photos in one request.
+  # ===========================================================================
+  CollectionsTable:
+    Type: AWS::DynamoDB::GlobalTable
+    Condition: IsPrimaryRegion
+    Properties:
+      TableName: !Sub ${AWS::StackName}-collections-${AWS::AccountId}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: buyerId
+          AttributeType: S
+        - AttributeName: photoId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: buyerId
+          KeyType: HASH
+        - AttributeName: photoId
+          KeyType: RANGE
+      Replicas:
+        - Region: us-east-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+        - Region: eu-west-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
 
   # ===========================================================================
   # EVENTBRIDGE — GALLERIA CUSTOM EVENT BUS
@@ -907,6 +1061,8 @@ Resources:
           PREVIEWS_BUCKET:         !Ref FullSizePreviewsS3Bucket
           THUMBS_DISTRIBUTION_URL: !Sub "https://${ThumbsDistribution.DomainName}"
           PAGE_SIZE: "24"
+          CATEGORY_INDEX: "category-uploadedAt-index"
+          AUDIO_BUCKET:   !Ref AudioStoriesS3Bucket
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
@@ -914,6 +1070,8 @@ Resources:
             BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
         - S3ReadPolicy:
             BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-audio-${AWS::Region}-${AWS::AccountId}
         - Statement:
             - Effect: Allow
               Action: bedrock:InvokeModel
@@ -926,6 +1084,35 @@ Resources:
           Type: Api
           Properties:
             Path: /list-images
+            Method: get
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: NONE
+
+  SimilarPhotosFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.handler
+      CodeUri: src/similar/
+      Runtime: python3.13
+      Timeout: 15
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          METADATA_TABLE:          !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          THUMBS_DISTRIBUTION_URL: !Sub "https://${ThumbsDistribution.DomainName}"
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt LambdaDLQ.QueueName
+      Events:
+        SimilarPhotosRoute:
+          Type: Api
+          Properties:
+            Path: /photos/similar
             Method: get
             RestApiId: !Ref GalleriaApi
             Auth:
@@ -999,6 +1186,7 @@ Resources:
           PREVIEWS_BUCKET:  !Ref FullSizePreviewsS3Bucket
           PROFILE_TABLE:    !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
           WATERMARK_TEXT:   "© Galleria"
+          COPYRIGHT_OWNER:  "Galleria"
       Policies:
         - S3ReadPolicy:
             BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
@@ -1030,6 +1218,94 @@ Resources:
           Properties:
             Path: /like
             Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: CustomerCognito
+
+  # ===========================================================================
+  # FOLLOW / UNFOLLOW / LIST-FOLLOWING
+  # Three routes share one Lambda to keep the IAM surface small.
+  #   POST   /follow              → follow a photographer (PutItem)
+  #   DELETE /follow/{followeeId} → unfollow            (DeleteItem)
+  #   GET    /follow              → list who I follow    (Query by followerId)
+  # All routes require CustomerCognito — followerId is the Cognito sub from
+  # the JWT, so customers can only read/write their own follow list.
+  # ===========================================================================
+  FollowFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/follow/
+      Handler: app.handler
+      Runtime: python3.13
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          FOLLOWS_TABLE: !Sub ${AWS::StackName}-follows-${AWS::AccountId}
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-follows-${AWS::AccountId}
+      Events:
+        FollowPost:
+          Type: Api
+          Properties:
+            Path: /follow
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: CustomerCognito
+        FollowDelete:
+          Type: Api
+          Properties:
+            Path: /follow/{followeeId}
+            Method: delete
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: CustomerCognito
+        FollowGet:
+          Type: Api
+          Properties:
+            Path: /follow
+            Method: get
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: CustomerCognito
+
+  # ===========================================================================
+  # FOLLOWING FEED
+  # GET /feed — returns the most recent photos from photographers the caller
+  # follows, newest-first.  Two-step read: Query FollowsTable → filter Scan on
+  # PhotoMetadataTable.  Efficient enough for MVP gallery sizes.
+  # ===========================================================================
+  FeedFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/feed/
+      Handler: app.handler
+      Runtime: python3.13
+      DeadLetterQueue:
+        Type: SQS
+        TargetArn: !GetAtt LambdaDLQ.Arn
+      Environment:
+        Variables:
+          FOLLOWS_TABLE:    !Sub ${AWS::StackName}-follows-${AWS::AccountId}
+          METADATA_TABLE:   !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          THUMBS_DISTRIBUTION_URL: !Sub "https://${ThumbsDistribution.DomainName}"
+          PREVIEWS_BUCKET:  !Ref FullSizePreviewsS3Bucket
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-follows-${AWS::AccountId}
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Ref FullSizePreviewsS3Bucket
+      Events:
+        FeedGet:
+          Type: Api
+          Properties:
+            Path: /feed
+            Method: get
             RestApiId: !Ref GalleriaApi
             Auth:
               Authorizer: CustomerCognito
@@ -1251,6 +1527,14 @@ Resources:
           Type: Api
           Properties:
             Path: /admin/approve
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
+        EditorChoice:
+          Type: Api
+          Properties:
+            Path: /admin/editor-choice
             Method: post
             RestApiId: !Ref GalleriaApi
             Auth:
@@ -1646,17 +1930,38 @@ Resources:
       Environment:
         Variables:
           ORDERS_TABLE:                 !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+          METADATA_TABLE:              !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          THUMBS_BUCKET:               !Ref ThumbsS3Bucket
+          PREVIEWS_BUCKET:             !Ref FullSizePreviewsS3Bucket
+          ORIGINALS_BUCKET:            !Ref OriginalsS3Bucket
           STRIPE_SECRET_KEY_PARAM:      /serverless-photo-galleria/stripe-secret-key
           STRIPE_WEBHOOK_SECRET_PARAM:  /serverless-photo-galleria/stripe-webhook-secret
+          COLLECTIONS_TABLE:           !Sub ${AWS::StackName}-collections-${AWS::AccountId}
+          # SES verified identity — must match a verified address/domain in SES
+          SES_FROM_EMAIL:               noreply@proactivetechsolutions.net
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Sub ${AWS::StackName}-orders-${AWS::AccountId}
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-collections-${AWS::AccountId}
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
         - Statement:
             - Effect: Allow
               Action: ssm:GetParameter
               Resource:
                 - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/serverless-photo-galleria/stripe-secret-key
                 - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/serverless-photo-galleria/stripe-webhook-secret
+            # SES send permission — scoped to the verified sender identity
+            - Effect: Allow
+              Action: ses:SendEmail
+              Resource: !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/proactivetechsolutions.net
       Events:
         StripeWebhook:
           Type: Api
@@ -1666,6 +1971,167 @@ Resources:
             RestApiId: !Ref GalleriaApi
             Auth:
               Authorizer: NONE
+
+  # ===========================================================================
+  # LAMBDA — AI COMPOSITION FEEDBACK
+  # ===========================================================================
+  CompositionFeedbackFunction:
+    Type: AWS::Serverless::Function
+    Condition: IsPrimaryRegion
+    Properties:
+      CodeUri: src/composition_feedback/
+      Handler: app.handler
+      Description: On-demand AI composition critique via Bedrock Claude Haiku. Result cached in DynamoDB.
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          METADATA_TABLE: !Ref PhotoMetadataTable
+          THUMBS_BUCKET:  !Ref ThumbsS3Bucket
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref PhotoMetadataTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PhotoMetadataTable
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource:
+                - !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0
+      Events:
+        CompositionFeedbackGet:
+          Type: Api
+          Properties:
+            Path: /composition-feedback
+            Method: get
+            RestApiId: !Ref GalleriaApi
+
+
+  # ===========================================================================
+  # LAMBDA — COLLECTOR (buyer collection / purchased photos)
+  # ===========================================================================
+  CollectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/collector/
+      Handler: app.handler
+      Description: Returns authenticated buyer's purchased photo collection with re-download URLs.
+      Timeout: 15
+      MemorySize: 128
+      Environment:
+        Variables:
+          COLLECTIONS_TABLE:       !Sub ${AWS::StackName}-collections-${AWS::AccountId}
+          METADATA_TABLE:          !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          THUMBS_DISTRIBUTION_URL: !Sub "https://${ThumbsDistribution.DomainName}"
+          PREVIEWS_BUCKET:         !Ref FullSizePreviewsS3Bucket
+          ORIGINALS_BUCKET:        !Ref OriginalsS3Bucket
+          THUMBS_BUCKET:           !Ref ThumbsS3Bucket
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-collections-${AWS::AccountId}
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-previews-${AWS::Region}-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
+      Events:
+        MyCollectionGet:
+          Type: Api
+          Properties:
+            Path: /my-collection
+            Method: get
+            RestApiId: !Ref GalleriaApi
+
+  # ===========================================================================
+  # LAMBDA — SERIES (photo essay CRUD)
+  # ===========================================================================
+  SeriesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/series/
+      Handler: app.handler
+      Description: CRUD for photo series/essays. POST creates, GET lists/reads, PUT updates, DELETE removes.
+      Timeout: 15
+      MemorySize: 128
+      Environment:
+        Variables:
+          SERIES_TABLE:            !Sub ${AWS::StackName}-series-${AWS::AccountId}
+          METADATA_TABLE:          !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          THUMBS_DISTRIBUTION_URL: !Sub "https://${ThumbsDistribution.DomainName}"
+          PHOTOGRAPHER_INDEX:      "photographerId-createdAt-index"
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub ${AWS::StackName}-series-${AWS::AccountId}
+        - DynamoDBReadPolicy:
+            TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+      Events:
+        SeriesPost:
+          Type: Api
+          Properties:
+            Path: /series
+            Method: post
+            RestApiId: !Ref GalleriaApi
+        SeriesGet:
+          Type: Api
+          Properties:
+            Path: /series
+            Method: get
+            RestApiId: !Ref GalleriaApi
+        SeriesPut:
+          Type: Api
+          Properties:
+            Path: /series
+            Method: put
+            RestApiId: !Ref GalleriaApi
+        SeriesDelete:
+          Type: Api
+          Properties:
+            Path: /series
+            Method: delete
+            RestApiId: !Ref GalleriaApi
+
+  # ===========================================================================
+  # LAMBDA — AUDIO STORY (voice note per photo)
+  # ===========================================================================
+  AudioStoryFunction:
+    Type: AWS::Serverless::Function
+    Condition: IsPrimaryRegion
+    Properties:
+      CodeUri: src/audio_story/
+      Handler: app.handler
+      Description: Presign S3 PUT for audio upload; DELETE removes audio and clears DynamoDB field.
+      Timeout: 15
+      MemorySize: 128
+      Environment:
+        Variables:
+          AUDIO_BUCKET:   !Ref AudioStoriesS3Bucket
+          METADATA_TABLE: !Ref PhotoMetadataTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref PhotoMetadataTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PhotoMetadataTable
+        - S3CrudPolicy:
+            BucketName: !Sub ${AWS::StackName}-audio-${AWS::Region}-${AWS::AccountId}
+      Events:
+        AudioStoryPost:
+          Type: Api
+          Properties:
+            Path: /audio-story
+            Method: post
+            RestApiId: !Ref GalleriaApi
+        AudioStoryDelete:
+          Type: Api
+          Properties:
+            Path: /audio-story
+            Method: delete
+            RestApiId: !Ref GalleriaApi
 
   # ===========================================================================
   # LAMBDA — INDIVIDUAL PIPELINE EFFECT FUNCTIONS
@@ -1785,6 +2251,7 @@ Resources:
           THUMBS_BUCKET:    !Ref ThumbsS3Bucket
           PREVIEWS_BUCKET:  !Ref FullSizePreviewsS3Bucket
           WATERMARK_TEXT:   "© Galleria"
+          COPYRIGHT_OWNER:  "Galleria"
       Policies:
         - S3ReadPolicy:
             BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
@@ -2132,6 +2599,11 @@ Resources:
 # =============================================================================
 Outputs:
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # API ENDPOINTS
+  # GlobalApiEndpoint  → put behind Route 53 latency record for multi-region
+  # RegionalApiEndpoint → direct API GW URL, useful for debugging / health checks
+  # ─────────────────────────────────────────────────────────────────────────
   GlobalApiEndpoint:
     Description: "CloudFront-accelerated API endpoint for this region"
     Value: !Sub "https://${ApiDistribution.DomainName}"
@@ -2140,79 +2612,58 @@ Outputs:
     Description: "Direct regional API Gateway URL (for debugging)"
     Value: !Sub "https://${GalleriaApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
 
+  # ─────────────────────────────────────────────────────────────────────────
+  # FRONTEND DISTRIBUTIONS
+  # FrontendDistributionId / PurchaserDistributionId are used by deploy.sh
+  # to run CloudFront invalidations after an s3 sync.
+  # ─────────────────────────────────────────────────────────────────────────
+  FrontendDistributionId:
+    Description: "CloudFront distribution ID — photographer portal (index.html)"
+    Value: !Ref FrontendDistribution
+
+  FrontendUrl:
+    Description: "Photographer portal URL"
+    Value: !Sub "https://${FrontendDistribution.DomainName}"
+
+  FrontendBucketName:
+    Description: "S3 bucket backing the photographer portal (for deploy.sh s3 sync)"
+    Value: !Ref FrontendWebBucket
+
+  PurchaserDistributionId:
+    Description: "CloudFront distribution ID — customer gallery (customer.html)"
+    Value: !Ref PurchaserDistribution
+
+  PurchaserUrl:
+    Description: "Customer gallery URL"
+    Value: !Sub "https://${PurchaserDistribution.DomainName}"
+
+  PurchaserBucketName:
+    Description: "S3 bucket backing the customer gallery (for deploy.sh s3 sync)"
+    Value: !Ref PurchaserWebBucket
+
+  ThumbsDistributionId:
+    Description: "CloudFront distribution ID — thumbnails CDN"
+    Value: !Ref ThumbsDistribution
+
+  ThumbsDistributionDomain:
+    Description: "Thumbnails CDN domain — value used as THUMBS_DISTRIBUTION_URL env var"
+    Value: !Sub "https://${ThumbsDistribution.DomainName}"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # COGNITO — PHOTOGRAPHER POOL
+  # UserPoolArn is required in euwest1 samconfig as PrimaryGalleriaUserPoolArn
+  # ─────────────────────────────────────────────────────────────────────────
   UserPoolId:
     Condition: IsPrimaryRegion
-    Description: "Photographer Cognito User Pool ID (primary region)"
+    Description: "Photographer Cognito User Pool ID"
     Value: !Ref GalleriaUserPool
-
-  UserPoolArn:
-    Condition: IsPrimaryRegion
-    Description: "Photographer pool ARN — pass as PrimaryGalleriaUserPoolArn to eu-west-1"
-    Value: !GetAtt GalleriaUserPool.Arn
 
   UserPoolClientId:
     Condition: IsPrimaryRegion
     Description: "Photographer Cognito App Client ID"
     Value: !Ref GalleriaUserPoolClient
 
-  CustomerUserPoolId:
+  UserPoolArn:
     Condition: IsPrimaryRegion
-    Description: "Customer Cognito User Pool ID (primary region)"
-    Value: !Ref CustomerUserPool
-
-  CustomerUserPoolArn:
-    Condition: IsPrimaryRegion
-    Description: "Customer pool ARN — pass as PrimaryCustomerUserPoolArn to eu-west-1"
-    Value: !GetAtt CustomerUserPool.Arn
-
-  CustomerUserPoolClientId:
-    Condition: IsPrimaryRegion
-    Description: "Customer Cognito App Client ID"
-    Value: !Ref CustomerUserPoolClient
-
-  AdminWebsiteURL:
-    Description: "CloudFront URL for the Creator/Admin portal in this region"
-    Value: !Sub "https://${FrontendDistribution.DomainName}"
-
-  PurchaserWebsiteURL:
-    Description: "CloudFront URL for the Customer Galleria portal in this region"
-    Value: !Sub "https://${PurchaserDistribution.DomainName}"
-
-  FrontendBucketName:
-    Description: "S3 bucket for admin frontend assets in this region"
-    Value: !Ref FrontendWebBucket
-
-  PurchaserBucketName:
-    Description: "S3 bucket for customer frontend assets in this region"
-    Value: !Ref PurchaserWebBucket
-
-  CdnWafWebAclArn:
-    Condition: IsPrimaryRegion
-    Description: "CLOUDFRONT WAF WebACL ARN — pass as CdnWafWebAclArn to eu-west-1"
-    Value: !GetAtt CdnWafWebAcl.Arn
-
-  ThumbsDistributionURL:
-    Description: "CloudFront URL for thumbnails CDN"
-    Value: !Sub "https://${ThumbsDistribution.DomainName}"
-
-  AlarmTopicArn:
-    Description: "SNS topic ARN for CloudWatch alarm notifications"
-    Value: !Ref AlarmTopic
-
-  LambdaDLQUrl:
-    Description: "SQS URL of the shared Lambda dead-letter queue"
-    Value: !Ref LambdaDLQ
-
-  UserConsentTableName:
-    Condition: IsPrimaryRegion
-    Description: "DynamoDB table for user consent records (GDPR Art. 7)"
-    Value: !Sub ${AWS::StackName}-user-consent-${AWS::AccountId}
-
-  AuditLogTableName:
-    Condition: IsPrimaryRegion
-    Description: "DynamoDB append-only audit log (GDPR Art. 30, 7-year TTL)"
-    Value: !Sub ${AWS::StackName}-audit-log-${AWS::AccountId}
-
-  GalleriaEventBusArn:
-    Description: "Custom EventBridge bus ARN — pass as PrimaryEventBusArn to eu-west-1"
-    Value: !GetAtt GalleriaEventBus.Arn
+    Description: "Photographer pool ARN — set as PrimaryGalleriaUserPoolArn in eu-west-1 samconfig"
+    Value: !GetAtt GalleriaUserPool.Arn
