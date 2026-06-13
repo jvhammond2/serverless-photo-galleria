@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Galleria — Fine Art Photography Prints</title>
 <script src="i18n.js" defer></script>
-<link rel="icon" href="data:,">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23111111'/><text x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-size='21' font-weight='bold' fill='%23B8861E'>G</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
@@ -13,7 +13,7 @@
 
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#FAFAF8;--surface:#FFFFFF;--ink:#111111;--ink-2:#555555;--ink-3:#767676;--border:#E8E8E5;--gold:#B8861E;--green:#1a7a3a}
+:root{--bg:#FAFAF8;--surface:#FFFFFF;--ink:#111111;--ink-2:#555555;--ink-3:#5C5C5C;--border:#E8E8E5;--gold:#B8861E;--green:#1a7a3a}
 html{scroll-behavior:smooth}
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
 header{position:sticky;top:0;z-index:100;background:rgba(250,250,248,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
@@ -34,7 +34,16 @@ header{position:sticky;top:0;z-index:100;background:rgba(250,250,248,.92);backdr
 .cart-btn{position:relative}
 .cbadge{position:absolute;top:2px;right:4px;background:var(--gold);color:#fff;font-size:9px;font-weight:700;width:16px;height:16px;border-radius:50%;display:none;align-items:center;justify-content:center}
 .cbadge.vis{display:flex}
-.hero{position:relative;overflow:hidden;height:500px;background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)}
+.hero{position:relative;overflow:hidden;height:520px;background:linear-gradient(145deg,#0d0d1a 0%,#12172e 40%,#0a1f3d 70%,#0f1528 100%)}
+.hero::before{content:'';position:absolute;inset:0;background-image:
+  linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);
+  background-size:120px 120px;pointer-events:none;}
+.hero-mosaic{position:absolute;inset:0;display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(3,1fr);gap:3px;opacity:.18;pointer-events:none;}
+.hero-mosaic span{background:linear-gradient(135deg,#2a3a5c,#1a2a4a);border-radius:2px;}
+.hero-mosaic span:nth-child(3n){background:linear-gradient(135deg,#1e3a28,#152a1c);}
+.hero-mosaic span:nth-child(5n){background:linear-gradient(135deg,#3a2a1e,#2a1e14);}
+.hero-mosaic span:nth-child(7n){background:linear-gradient(135deg,#2a1e3a,#1e1428);}
 .hero-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.65),transparent 80%);display:flex;flex-direction:column;justify-content:flex-end;padding:48px 56px}
 .hero-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;padding:5px 12px;border-radius:20px;margin-bottom:14px;width:fit-content}
 .hero-title{font-family:'Playfair Display',serif;font-size:42px;font-weight:600;color:#fff;line-height:1.15;max-width:560px;margin-bottom:8px}
@@ -669,6 +678,7 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 </div>
 
 <div class="hero">
+<div class="hero-mosaic" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
   <div class="hero-overlay">
     <div class="hero-badge"><i class="ti ti-sparkles" style="font-size:12px;"></i> <span data-i18n="gallery.hero_badge">CURATED COLLECTION</span></div>
     <div class="hero-title" data-i18n="gallery.hero_title">Fine Art Prints</div>

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Galleria — Studio Portal</title>
 <script src="i18n.js" defer></script>
-<link rel="icon" href="data:,">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230D0D0D'/><text x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-size='21' font-weight='bold' fill='%235EAD82'>G</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
@@ -412,6 +412,20 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 #toast.ok{border-color:var(--green);color:var(--green);}
 #toast.err{border-color:var(--red);color:var(--red);}
+
+/* ── Mobile nav ───────────────────────────────────────── */
+.mob-menu-btn{display:none;align-items:center;justify-content:center;width:34px;height:34px;
+  border-radius:7px;border:1px solid var(--border);background:none;color:var(--text-1);
+  font-size:18px;cursor:pointer;flex-shrink:0;}
+.sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:199;}
+@media(max-width:768px){
+  .mob-menu-btn{display:flex;}
+  .sidebar{position:fixed;top:0;left:0;bottom:0;z-index:200;transform:translateX(-100%);
+    transition:transform .25s cubic-bezier(.4,0,.2,1);}
+  .sidebar.mob-open{transform:translateX(0);}
+  .sidebar-backdrop.mob-open{display:block;}
+  .main{width:100%;}
+}
 </style>
 </head>
 <body>
@@ -521,6 +535,7 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 
 <div class="main">
   <div class="topbar">
+      <button class="mob-menu-btn" id="mobMenuBtn" aria-label="Open menu"><i class="ti ti-menu-2"></i></button>
     <div class="page-title" id="pageTitle">Upload &amp; Process</div>
     <div class="topbar-right">
       <div id="langSwitcherPortal"></div>
@@ -2264,6 +2279,20 @@ async function getCachedProfile() {
   return _cachedProfile;
 }
 
+</script>
+
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+<script>
+// Mobile sidebar toggle
+(function(){
+  var btn = document.getElementById('mobMenuBtn');
+  var backdrop = document.getElementById('sidebarBackdrop');
+  var sidebar = document.querySelector('.sidebar');
+  function open(){sidebar.classList.add('mob-open');backdrop.classList.add('mob-open');document.body.style.overflow='hidden';}
+  function close(){sidebar.classList.remove('mob-open');backdrop.classList.remove('mob-open');document.body.style.overflow='';}
+  if(btn){btn.addEventListener('click',open);}
+  if(backdrop){backdrop.addEventListener('click',close);}
+})();
 </script>
 </body>
 </html>

@@ -493,6 +493,8 @@ Resources:
     Properties:
       TableName: !Sub ${AWS::StackName}-follows-${AWS::AccountId}
       BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
       AttributeDefinitions:
         - AttributeName: followerId
           AttributeType: S
@@ -525,6 +527,8 @@ Resources:
     Properties:
       TableName: !Sub ${AWS::StackName}-series-${AWS::AccountId}
       BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
       AttributeDefinitions:
         - AttributeName: seriesId
           AttributeType: S
@@ -571,6 +575,8 @@ Resources:
     Properties:
       TableName: !Sub ${AWS::StackName}-collections-${AWS::AccountId}
       BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
       AttributeDefinitions:
         - AttributeName: buyerId
           AttributeType: S
