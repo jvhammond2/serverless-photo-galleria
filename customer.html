@@ -34,6 +34,19 @@ header{position:sticky;top:0;z-index:100;background:rgba(250,250,248,.92);backdr
 .cart-btn{position:relative}
 .cbadge{position:absolute;top:2px;right:4px;background:var(--gold);color:#fff;font-size:9px;font-weight:700;width:16px;height:16px;border-radius:50%;display:none;align-items:center;justify-content:center}
 .cbadge.vis{display:flex}
+/* Account dropdown */
+.acct-wrap{position:relative;}
+.acct-drop{position:absolute;top:calc(100% + 8px);right:0;min-width:210px;background:var(--surface);
+  border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);
+  opacity:0;pointer-events:none;transform:translateY(-6px);transition:opacity .15s,transform .15s;z-index:900;}
+.acct-drop.open{opacity:1;pointer-events:all;transform:translateY(0);}
+.acct-drop-header{padding:11px 14px 9px;font-size:11px;color:var(--ink-3);border-bottom:1px solid var(--border);word-break:break-all;}
+.acct-drop-item{display:flex;align-items:center;gap:9px;padding:10px 14px;font-size:13px;cursor:pointer;
+  color:var(--ink);transition:background .1s;border-radius:0;}
+.acct-drop-item:first-of-type{border-radius:0 0 0 0}
+.acct-drop-item:hover{background:rgba(0,0,0,.04);}
+.acct-drop-item i{font-size:15px;color:var(--ink-3);}
+.acct-drop-divider{height:1px;background:var(--border);margin:4px 0;}
 .hero{position:relative;overflow:hidden;height:520px;background:linear-gradient(145deg,#0d0d1a 0%,#12172e 40%,#0a1f3d 70%,#0f1528 100%)}
 .hero::before{content:'';position:absolute;inset:0;background-image:
   linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),
@@ -156,7 +169,7 @@ header{position:sticky;top:0;z-index:100;background:rgba(250,250,248,.92);backdr
 .lb.open{opacity:1;pointer-events:all}
 /* Ambient glow — radial bloom behind the photo matching dominant color */
 .lb-ambient{position:absolute;inset:0;pointer-events:none;transition:background 0.7s ease;z-index:0;border-radius:0;}
-.lb>*:not(.lb-ambient){position:relative;z-index:1;}
+.lb>*:not(.lb-ambient):not(.lb-bio):not(.lb-wall){position:relative;z-index:1;}
 .lbimg{max-width:90vw;max-height:72vh;object-fit:contain;border-radius:4px;display:block;transition:opacity .2s;-webkit-user-drag:none;user-select:none}
 .lbfoot{margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
 .lbtitle{color:#fff;font-size:15px;font-weight:500;width:100%;text-align:center;margin-bottom:4px}
@@ -171,10 +184,13 @@ header{position:sticky;top:0;z-index:100;background:rgba(250,250,248,.92);backdr
 .lb-similar-row::-webkit-scrollbar{display:none}
 .lb-sim-thumb{width:72px;height:72px;object-fit:cover;border-radius:6px;cursor:pointer;opacity:.75;transition:opacity .15s,transform .15s;flex-shrink:0;-webkit-user-drag:none}
 .lb-sim-thumb:hover{opacity:1;transform:scale(1.06)}
-/* Lightbox photographer bio panel */
-.lb-bio{position:absolute;inset:0;background:rgba(0,0,0,.95);display:flex;align-items:center;justify-content:center;padding:40px;opacity:0;pointer-events:none;transition:opacity .2s}
-.lb-bio.open{opacity:1;pointer-events:all}
-.lb-bio-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:36px;max-width:480px;width:100%;text-align:center}
+/* Lightbox photographer bio panel — right side drawer */
+.lb-bio{position:absolute;top:0;right:0;bottom:0;width:min(340px,90vw);background:rgba(10,10,10,.97);
+  border-left:1px solid rgba(255,255,255,.1);display:flex;align-items:flex-start;justify-content:center;
+  padding:44px 24px 40px;overflow-y:auto;transform:translateX(100%);pointer-events:none;
+  transition:transform .25s cubic-bezier(.4,0,.2,1);z-index:11;}
+.lb-bio.open{transform:translateX(0);pointer-events:all}
+.lb-bio-card{background:transparent;border:none;padding:0;max-width:none;width:100%;text-align:center}
 .lb-bio-avatar{width:72px;height:72px;border-radius:50%;background:var(--gold);color:#000;font-size:28px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
 .lb-bio-name{color:#fff;font-size:20px;font-weight:600;margin-bottom:6px}
 .lb-bio-location{color:rgba(255,255,255,.5);font-size:13px;margin-bottom:16px}
@@ -186,28 +202,37 @@ header{position:sticky;top:0;z-index:100;background:rgba(250,250,248,.92);backdr
 .lb-bio-back{display:inline-flex;align-items:center;gap:8px;padding:10px 22px;border-radius:8px;background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.25);color:#fff;font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s}
 .lb-bio-back:hover{background:rgba(255,255,255,.2)}
 /* Wall mockup overlay */
-.lb-wall{position:absolute;inset:0;z-index:12;background:linear-gradient(175deg,#ddd8d0 0%,#cec8be 55%,#c0b9ae 100%);
+.lb-wall{position:absolute;inset:0;z-index:12;
+  background:linear-gradient(180deg,#e8e2d8 0%,#ddd6ca 60%,#d4cdc0 100%);
   opacity:0;pointer-events:none;transition:opacity .25s;display:flex;flex-direction:column;
   align-items:center;justify-content:center;overflow:hidden;}
 .lb-wall.open{opacity:1;pointer-events:all}
-/* Wall surface detail: subtle horizontal lines for plaster texture */
-.lb-wall::before{content:'';position:absolute;inset:0;
-  background:repeating-linear-gradient(180deg,transparent,transparent 39px,rgba(0,0,0,.025) 40px);
+/* Subtle plaster texture */
+.lb-wall::before{content:'';position:absolute;inset:0 0 90px 0;
+  background:
+    repeating-linear-gradient(180deg,transparent,transparent 59px,rgba(0,0,0,.018) 60px),
+    repeating-linear-gradient(90deg,transparent,transparent 79px,rgba(0,0,0,.012) 80px);
   pointer-events:none;}
-/* Baseboard */
-.lb-wall::after{content:'';position:absolute;bottom:0;left:0;right:0;height:48px;
-  background:linear-gradient(180deg,#c4bdb2 0%,#b8b0a4 100%);
-  border-top:2px solid rgba(0,0,0,.12);pointer-events:none;}
+/* Wood floor */
+.lb-wall::after{content:'';position:absolute;bottom:0;left:0;right:0;height:90px;
+  background:
+    repeating-linear-gradient(90deg,
+      #8B6914 0px, #7a5c12 60px, #9a7420 61px, #8B6914 120px,
+      #7a5c12 121px, #9a7420 180px),
+    linear-gradient(180deg,#a07818 0%,#8B6914 40%,#7a5c12 100%);
+  border-top:3px solid #5a3e0a;box-shadow:inset 0 2px 8px rgba(0,0,0,.3);
+  pointer-events:none;}
 .lb-wall-close{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;
   background:rgba(0,0,0,.18);border:none;color:#fff;font-size:17px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;transition:background .15s;z-index:2}
 .lb-wall-close:hover{background:rgba(0,0,0,.35)}
 /* Hanging wire */
-.lb-wall-wire{position:relative;z-index:1;width:2px;height:32px;
-  background:linear-gradient(180deg,transparent,rgba(0,0,0,.25));margin-bottom:-1px;}
-/* Frame wrapper with perspective */
+.lb-wall-wire{position:relative;z-index:1;width:1px;height:28px;
+  background:linear-gradient(180deg,rgba(0,0,0,.0),rgba(0,0,0,.35));margin-bottom:-1px;}
+/* Frame wrapper */
 .lb-wall-scene{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;
-  filter:drop-shadow(0 24px 48px rgba(0,0,0,.55));}
+  filter:drop-shadow(0 20px 40px rgba(0,0,0,.45)) drop-shadow(0 4px 8px rgba(0,0,0,.25));
+  margin-bottom:60px;}
 /* White mat + frame */
 .lb-wall-frame{background:#fff;border:3px solid #1a1a1a;padding:18px;
   transition:width .35s cubic-bezier(.4,0,.2,1),height .35s cubic-bezier(.4,0,.2,1),
@@ -405,9 +430,18 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 .nav-dd-item i{font-size:15px}
 .nav-dd-soon{font-size:10px;padding:1px 6px;border-radius:20px;background:var(--bg);color:var(--ink-3);border:1px solid var(--border);margin-left:auto}
 .nav-dd-divider{border:none;border-top:1px solid var(--border);margin:4px 8px}
-.nav-dd-collections{width:560px;padding:14px 16px}
+.nav-dd-collections{width:680px;padding:14px 16px}
+/* Inline gallery collections dropdown */
+.gal-cat-wrap{position:relative;}
+.gal-cat-drop{position:absolute;top:calc(100% + 8px);left:0;z-index:500;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 8px 32px rgba(0,0,0,.13);padding:14px 16px;width:680px;max-width:90vw;
+  opacity:0;pointer-events:none;transform:translateY(-6px);
+  transition:opacity .15s,transform .15s;}
+.gal-cat-drop.open{opacity:1;pointer-events:all;transform:translateY(0);}
+.gal-cat-drop .cat-grid{max-height:none;}
 .nav-dd-header{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);margin-bottom:10px;padding:0 4px}
-.cat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:2px}
+.cat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;max-height:320px;overflow-y:auto;scrollbar-width:thin}
 .cat-grid-item{display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:7px;font-size:12px;color:var(--ink-2);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cat-grid-item:hover{background:var(--bg);color:var(--ink)}
 .cat-grid-item i{font-size:15px;color:var(--ink-3);flex-shrink:0}
@@ -509,6 +543,7 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
         </div>
       </div>
     </div>
+    <div id="lb-price" style="display:none;width:100%;text-align:center;padding:4px 0 2px;font-size:15px;font-weight:600;color:var(--ink);letter-spacing:.01em"></div>
     <button class="lbbtn" id="lb-like-btn" onclick="lbLike()"><i class="ti ti-heart"></i> <span data-i18n="gallery.btn_like">Like</span></button>
     <button class="lbbtn" onclick="lbCart()"><i class="ti ti-shopping-bag"></i> <span data-i18n="gallery.btn_add_cart">Add to Cart</span></button>
   </div>
@@ -624,16 +659,6 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
         </div>
       </button>
 
-      <!-- Collections ▾ -->
-      <button class="nav-item" id="btn-collections" onclick="navToggle('collections')">
-        <span data-i18n="nav.collections">Collections</span>
-        <i class="ti ti-chevron-down" aria-hidden="true"></i>
-        <div class="nav-dropdown nav-dd-collections" id="dd-collections">
-          <div class="nav-dd-header" data-i18n="nav.browse_all_categories">Browse all categories</div>
-          <div class="cat-grid" id="catGrid"></div>
-        </div>
-      </button>
-
       <!-- Photographers ▾ -->
       <button class="nav-item" id="btn-photographers" onclick="navToggle('photographers')">
         <span data-i18n="nav.photographers">Photographers</span>
@@ -653,14 +678,33 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
     </div>
     <div class="nav-right">
       <div id="langSwitcherGallery"></div>
-      <button class="nav-btn" id="colBtn" onclick="openMyCollection()" style="display:none">
-        <i class="ti ti-photo-heart" style="font-size:16px;"></i> My Collection
-      </button>
       <button class="nav-btn cart-btn" onclick="openCart()">
         <i class="ti ti-shopping-bag" style="font-size:16px;"></i> <span data-i18n="gallery.btn_cart">Cart</span>
         <span class="cbadge" id="cbadge">0</span>
       </button>
+      <!-- Sign In button (shown when signed out) -->
       <button class="nav-btn filled" id="anb" onclick="authNav()" data-i18n="gallery.btn_signin">Sign In</button>
+      <!-- Account dropdown (shown when signed in) -->
+      <div class="acct-wrap" id="acctWrap" style="display:none">
+        <button class="nav-btn" id="acctBtn" onclick="toggleAcctDrop()">
+          <i class="ti ti-user-circle" style="font-size:16px;"></i>
+          <span id="acctName">Account</span>
+          <i class="ti ti-chevron-down" style="font-size:11px;opacity:.6"></i>
+        </button>
+        <div class="acct-drop" id="acctDrop">
+          <div class="acct-drop-header" id="acctDropEmail"></div>
+          <div class="acct-drop-item" onclick="openMyCollection();closeAcctDrop()">
+            <i class="ti ti-photo-heart"></i> My Purchases
+          </div>
+          <div class="acct-drop-item" onclick="openCart();closeAcctDrop()">
+            <i class="ti ti-shopping-bag"></i> Shopping Cart
+          </div>
+          <div class="acct-drop-divider"></div>
+          <div class="acct-drop-item" onclick="authNav()">
+            <i class="ti ti-logout"></i> Sign Out
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </header>
@@ -683,9 +727,7 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
     <div class="hero-badge"><i class="ti ti-sparkles" style="font-size:12px;"></i> <span data-i18n="gallery.hero_badge">CURATED COLLECTION</span></div>
     <div class="hero-title" data-i18n="gallery.hero_title">Fine Art Prints</div>
     <div class="hero-sub" data-i18n="gallery.hero_sub">Discover and collect unique photographic art from talented photographers around the world.</div>
-    <div class="hero-actions">
-      <button class="hbtn p" onclick="document.getElementById('gal').scrollIntoView({behavior:'smooth'})"><i class="ti ti-photo"></i> <span data-i18n="gallery.hero_browse">Browse Collection</span></button>
-    </div>
+    <div class="hero-actions"></div>
   </div>
 </div>
 
@@ -722,7 +764,13 @@ footer{background:var(--ink);color:rgba(255,255,255,.8);padding:48px 32px;margin
 <div class="page">
   <div class="section" id="gal">
     <div class="sec-top">
-      <div class="sec-title" id="gtitle">Browse All</div>
+      <div class="gal-cat-wrap">
+        <button class="sec-title" id="gtitle" onclick="toggleGalCatDrop()" style="background:none;border:none;padding:0;cursor:pointer;display:flex;align-items:center;gap:6px;font:inherit;color:inherit;text-align:left">Collections <i class="ti ti-chevron-down" style="font-size:13px;opacity:.5"></i></button>
+        <div class="gal-cat-drop" id="galCatDrop">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.07em;color:var(--ink-3);text-transform:uppercase;margin-bottom:8px;">Browse all categories</div>
+          <div class="cat-grid" id="galCatGrid"></div>
+        </div>
+      </div>
       <span id="gcnt" style="font-size:13px;color:var(--ink-3);"></span>
       <button class="map-toggle" id="seriesToggleBtn" onclick="toggleSeriesSection()">
         <i class="ti ti-books"></i> Series
@@ -816,6 +864,7 @@ window.onload = () => {
     }
   }
   loadGallery();
+  loadProfile();
   handleUrlParams();
 };
 
@@ -966,7 +1015,7 @@ function removePaginationBtn() {
 
 function renderGallery(items, append) {
   const q = _lastQuery;
-  let title = 'Browse All';
+  let title = 'Collections';
   if (q) title = 'Results for "' + q + '"';
   else if (_lastCategory) {
     const cat = (typeof NAV_CATEGORIES !== 'undefined') && NAV_CATEGORIES.find(function(c){return c.slug===_lastCategory;});
@@ -977,9 +1026,12 @@ function renderGallery(items, append) {
   else if (_lastSort === 'feed') { title = 'Following'; }
   if (_lastColorMood) {
     const moodLabel = {warm:'Warm Tones',cool:'Cool Tones',green:'Green Palette',purple:'Purple Palette',neutral:'Neutral',dark:'Dark & Moody',light:'Light & Airy'}[_lastColorMood] || _lastColorMood;
-    title = (title === 'Browse All' ? '' : title + ' · ') + moodLabel;
+    title = (title === 'Collections' ? '' : title + ' · ') + moodLabel;
   }
-  document.getElementById('gtitle').textContent = title;
+  // Update button label while preserving the chevron icon
+  const gtitle = document.getElementById('gtitle');
+  const isDefaultTitle = (title === 'Collections');
+  gtitle.innerHTML = title + (isDefaultTitle ? ' <i class="ti ti-chevron-down" style="font-size:13px;opacity:.5"></i>' : '');
   document.getElementById('gcnt').textContent = photos.length ? photos.length + (photos.length !== 1 ? ' prints' : ' print') : '';
   const g = document.getElementById('grid');
   if (!append) g.innerHTML = '';
@@ -1006,7 +1058,6 @@ function buildCard(p) {
   const lk = p.likes || 0;
   const tu = p.thumbnailUrl || '';
   const desc = p.aiDescription || '';
-  const fromPrice = p.suggestedPriceCents ? '$' + (p.suggestedPriceCents / 100).toFixed(2) : 'From $9.99';
   const tagH = tags.slice(0,3).map(x=>'<span class="otag">'+E(typeof x==='object'?x.Name||'':x)+'</span>').join('');
   const d = document.createElement('div'); d.className = 'pc';
   d.innerHTML =
@@ -1014,13 +1065,11 @@ function buildCard(p) {
     +'<div class="po"><div class="otags">'+tagH+'</div><div class="otitle">'+E(title)+'</div>'
     +(desc?'<div class="odesc">'+E(desc)+'</div>':'')
     +'<div class="oactions">'
-    +'<div class="oprice">'+E(fromPrice)+'<span>Fine art print</span></div>'
-    +'<div style="display:flex;gap:6px;">'
+    +'<div style="display:flex;gap:6px;margin-left:auto">'
     +'<button class="obtn cart" onclick="event.stopPropagation();addCart(\''+E(id)+'\')"><i class="ti ti-shopping-bag"></i></button>'
-    +'<button class="obtn" onclick="event.stopPropagation();quickBuy(\''+E(id)+'\')"><i class="ti ti-credit-card"></i> Buy</button>'
     +'</div></div></div></div>'
     +'<div class="pfoot"><div class="pname">'+E(title)+'</div>'
-    +'<div class="pmeta"><span class="pprice">'+E(fromPrice)+'</span>'
+    +'<div class="pmeta"><span class="pprice" style="opacity:.55;font-size:11px">'+E(p.photographerName||'')+'</span>'
     +'<div style="display:flex;align-items:center;gap:8px;">'
     +(p.dominantColors&&p.dominantColors.length?'<div class="pdots">'+p.dominantColors.slice(0,3).map(c=>'<div class="pdot" style="background:'+E(c)+'"></div>').join('')+'</div>':'')
     +'<button class="plike" id="lk-'+E(id)+'" onclick="event.stopPropagation();doLike(\''+E(id)+'\',this)"><i class="ti ti-heart"></i> <span class="lc">'+lk+'</span></button>'
@@ -1122,6 +1171,18 @@ function openLB(p) {
   } else {
     pgEl.style.display = 'none';
   }
+  // Price
+  const priceEl = document.getElementById('lb-price');
+  if (priceEl) {
+    const cents = p.suggestedPriceCents;
+    if (cents) {
+      priceEl.textContent = 'From $' + (cents / 100).toFixed(2) + ' · Fine art print';
+      priceEl.style.display = '';
+    } else {
+      priceEl.textContent = '';
+      priceEl.style.display = 'none';
+    }
+  }
   // Like button state
   const likeBtn = document.getElementById('lb-like-btn');
   const cardBtn = document.getElementById('lk-' + p.photoId);
@@ -1183,7 +1244,7 @@ async function loadSimilar(photoId) {
   strip.style.display = 'none';
   row.innerHTML = '';
   try {
-    const r = await fetch(CONFIG.ApiBase + '/photos/similar?photoId=' + encodeURIComponent(photoId) + '&limit=6');
+    const r = await fetch(C.ApiBase + '/photos/similar?photoId=' + encodeURIComponent(photoId) + '&limit=6');
     if (!r.ok) return;
     const data = await r.json();
     const photos = data.photos || [];
@@ -1204,7 +1265,7 @@ async function loadSimilar(photoId) {
 async function _openSimilar(simPhoto) {
   // Fetch the full photo record so we have previewUrl, then open lightbox
   try {
-    const r = await fetch(CONFIG.ApiBase + '/list-images?photographerId=' + encodeURIComponent(simPhoto.photographerId || ''));
+    const r = await fetch(C.ApiBase + '/list-images?photographerId=' + encodeURIComponent(simPhoto.photographerId || ''));
     if (r.ok) {
       const data = await r.json();
       const full = (data.photos || []).find(p => p.photoId === simPhoto.photoId);
@@ -1236,7 +1297,7 @@ async function lbViewProfile() {
   // Populate with whatever we already have on the photo object
   const name = lbPhoto.photographerName || lbPhoto.photographerDisplayName || 'Photographer';
   const initial = name.charAt(0).toUpperCase();
-  document.getElementById('lb-bio-avatar').textContent = initial;
+  _setLbBioAvatar(null, initial);
   document.getElementById('lb-bio-name').textContent = name;
   document.getElementById('lb-bio-location').textContent = lbPhoto.photographerLocation || '';
   document.getElementById('lb-bio-text').textContent = lbPhoto.photographerBio || 'Independent photographer sharing their work on Galleria.';
@@ -1252,9 +1313,23 @@ async function lbViewProfile() {
         if (p.displayName) document.getElementById('lb-bio-name').textContent = p.displayName;
         if (p.location)    document.getElementById('lb-bio-location').textContent = p.location;
         if (p.bio)         document.getElementById('lb-bio-text').textContent = p.bio;
-        if (p.displayName) document.getElementById('lb-bio-avatar').textContent = p.displayName.charAt(0).toUpperCase();
+        const i2 = (p.displayName || name).charAt(0).toUpperCase();
+        _setLbBioAvatar(p.avatarUrl || null, i2);
       }
     } catch(e) { /* silently ignore */ }
+  }
+}
+
+function _setLbBioAvatar(url, initial) {
+  const el = document.getElementById('lb-bio-avatar');
+  if (!el) return;
+  if (url) {
+    el.innerHTML = `<img src="${url}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;display:block;" alt="" onerror="this.parentNode.textContent='${initial}'">`;
+    el.style.background = 'none';
+  } else {
+    el.innerHTML = '';
+    el.textContent = initial;
+    el.style.background = '';
   }
 }
 function closeBio() {
@@ -1318,6 +1393,128 @@ async function toggleFollow() {
   }
 }
 
+// ── Nav dropdown management ───────────────────────────────────────────────
+const NAV_CATEGORIES = [
+  {slug:'abstract',       label:'Abstract',         icon:'ti-atom'},
+  {slug:'aerial',         label:'Aerial',           icon:'ti-drone'},
+  {slug:'animals',        label:'Animals',          icon:'ti-paw'},
+  {slug:'bw',             label:'Black & White',    icon:'ti-circle-half-2'},
+  {slug:'boudoir',        label:'Boudoir',          icon:'ti-eye'},
+  {slug:'celebrities',    label:'Celebrities',      icon:'ti-star'},
+  {slug:'city',           label:'City',             icon:'ti-building-skyscraper'},
+  {slug:'commercial',     label:'Commercial',       icon:'ti-briefcase'},
+  {slug:'concert',        label:'Concert',          icon:'ti-music'},
+  {slug:'family',         label:'Family',           icon:'ti-home-heart'},
+  {slug:'fashion',        label:'Fashion',          icon:'ti-hanger'},
+  {slug:'film',           label:'Film',             icon:'ti-movie'},
+  {slug:'fineart',        label:'Fine Art',         icon:'ti-palette'},
+  {slug:'food',           label:'Food',             icon:'ti-salad'},
+  {slug:'journalism',     label:'Journalism',       icon:'ti-news'},
+  {slug:'landscape',      label:'Landscape',        icon:'ti-mountain'},
+  {slug:'macro',          label:'Macro',            icon:'ti-zoom-in'},
+  {slug:'nature',         label:'Nature',           icon:'ti-leaf'},
+  {slug:'night',          label:'Night',            icon:'ti-moon'},
+  {slug:'other',          label:'Other',            icon:'ti-photo'},
+  {slug:'people',         label:'People',           icon:'ti-users'},
+  {slug:'performing',     label:'Performing Arts',  icon:'ti-masks-theater'},
+  {slug:'sport',          label:'Sport',            icon:'ti-ball-football'},
+  {slug:'stilllife',      label:'Still Life',       icon:'ti-bowl'},
+  {slug:'street',         label:'Street',           icon:'ti-road'},
+  {slug:'transportation', label:'Transportation',   icon:'ti-car'},
+  {slug:'travel',         label:'Travel',           icon:'ti-plane'},
+  {slug:'underwater',     label:'Underwater',       icon:'ti-waves'},
+  {slug:'urbex',          label:'Urban Exploration',icon:'ti-building-factory'},
+  {slug:'wedding',        label:'Wedding',          icon:'ti-heart'},
+];
+
+let _openNav = null;
+
+function navToggle(name) {
+  const isOpen = _openNav === name;
+  if (_openNav) {
+    const b = document.getElementById('btn-' + _openNav);
+    const d = document.getElementById('dd-' + _openNav);
+    if (b) b.classList.remove('open');
+    if (d) d.classList.remove('open');
+    _openNav = null;
+  }
+  if (!isOpen) {
+    const b = document.getElementById('btn-' + name);
+    const d = document.getElementById('dd-' + name);
+    if (b) b.classList.add('open');
+    if (d) d.classList.add('open');
+    _openNav = name;
+    if (name === 'collections') buildCatGrid();
+  }
+}
+
+function buildCatGrid() {
+  const grid = document.getElementById('catGrid');
+  if (!grid || grid.children.length) return;
+  grid.innerHTML = NAV_CATEGORIES.map(c =>
+    `<div class="cat-grid-item" onclick="navSelect('${c.slug}','')">
+       <i class="ti ${c.icon}" aria-hidden="true"></i>${c.label}
+     </div>`
+  ).join('');
+}
+
+let _galCatOpen = false;
+function toggleGalCatDrop() {
+  _galCatOpen = !_galCatOpen;
+  const drop = document.getElementById('galCatDrop');
+  if (!drop) return;
+  drop.classList.toggle('open', _galCatOpen);
+  if (_galCatOpen) buildGalCatGrid();
+}
+function closeGalCatDrop() {
+  _galCatOpen = false;
+  const drop = document.getElementById('galCatDrop');
+  if (drop) drop.classList.remove('open');
+}
+function buildGalCatGrid() {
+  const grid = document.getElementById('galCatGrid');
+  if (!grid || grid.children.length) return;
+  grid.innerHTML = NAV_CATEGORIES.map(c =>
+    `<div class="cat-grid-item" onclick="galCatSelect('${c.slug}')">
+       <i class="ti ${c.icon}" aria-hidden="true"></i>${c.label}
+     </div>`
+  ).join('');
+}
+function galCatSelect(slug) {
+  closeGalCatDrop();
+  navSelect(slug, '');
+}
+
+function navSelect(category, sort) {
+  if (_openNav) navToggle(_openNav);
+  loadImages(category || null, sort || null);
+  if (category) {
+    const cat = NAV_CATEGORIES.find(c => c.slug === category);
+    document.getElementById('catPillLabel').textContent = cat ? cat.label : category;
+    document.getElementById('catActiveStrip').style.display = '';
+  } else {
+    document.getElementById('catActiveStrip').style.display = 'none';
+  }
+}
+
+function clearCategory() {
+  document.getElementById('catActiveStrip').style.display = 'none';
+  loadImages('', _lastSort || 'popular');
+}
+
+// Close dropdowns when clicking outside the nav
+document.addEventListener('click', function(e) {
+  if (_openNav && !e.target.closest('#btn-' + _openNav) && !e.target.closest('#dd-' + _openNav)) {
+    navToggle(_openNav);
+  }
+  if (_acctOpen && !e.target.closest('#acctWrap')) {
+    closeAcctDrop();
+  }
+  if (_galCatOpen && !e.target.closest('.gal-cat-wrap')) {
+    closeGalCatDrop();
+  }
+});
+
 async function navSelectFeed() {
   if (_openNav) { navToggle(_openNav); }
   _lastCategory = '';
@@ -1328,7 +1525,7 @@ async function navSelectFeed() {
   await loadFollowingSet();
   const ids = [..._followingSet];
   if (!ids.length) {
-    document.getElementById('gtitle').textContent = 'Following';
+    document.getElementById('gtitle').innerHTML = 'Following';
     document.getElementById('gcnt').textContent = '';
     document.getElementById('grid').innerHTML = '<div class="sbox"><i class="ti ti-users"></i><p>Follow some photographers to see their latest work here.</p></div>';
     return;
@@ -1336,9 +1533,27 @@ async function navSelectFeed() {
   loadGallery('', '', null);
 }
 
+function _getJwtEmail() {
+  // Extract email from the JWT payload — works on both initial login and session restore
+  try {
+    const payload = JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    return payload.email || payload['cognito:username'] || '';
+  } catch(e) { return CU ? CU.getUsername() : ''; }
+}
+
 function _onSignedIn() {
-  document.getElementById('anb').textContent = 'Sign Out';
-  const cb = document.getElementById('colBtn'); if(cb) cb.style.display = '';
+  // Hide Sign In button, show account dropdown
+  document.getElementById('anb').style.display = 'none';
+  const wrap = document.getElementById('acctWrap'); if(wrap) wrap.style.display = '';
+  // Populate dropdown — use JWT email (works on session restore, not just login)
+  const email = _getJwtEmail();
+  const nameEl = document.getElementById('acctName');
+  if (nameEl) {
+    const base = email.includes('@') ? email.split('@')[0] : email;
+    nameEl.textContent = base ? base.charAt(0).toUpperCase() + base.slice(1) : 'Account';
+  }
+  const emailEl = document.getElementById('acctDropEmail');
+  if (emailEl) emailEl.textContent = email;
   document.getElementById('nav-dd-following').style.display = '';
   document.getElementById('nav-dd-following-soon').style.display = 'none';
   loadFollowingSet();
@@ -1346,10 +1561,12 @@ function _onSignedIn() {
 
 function _onSignedOut() {
   tok = ''; CU = null;
-  const cb = document.getElementById('colBtn'); if(cb) cb.style.display = 'none';
   closeMyCollection();
   _followingSet = new Set(); _followingLoaded = false;
-  document.getElementById('anb').textContent = 'Sign In';
+  // Show Sign In button, hide account dropdown
+  document.getElementById('anb').style.display = '';
+  const wrap = document.getElementById('acctWrap'); if(wrap) wrap.style.display = 'none';
+  closeAcctDrop();
   document.getElementById('nav-dd-following').style.display = 'none';
   document.getElementById('nav-dd-following-soon').style.display = '';
 }
@@ -1630,8 +1847,17 @@ function closeInfo() {
 }
 function mbClick(e) { if (e.target===e.currentTarget) closeMod(); }
 function authNav() {
-  if (tok) { if (CU) CU.signOut(); tok=''; CU=null; document.getElementById('anb').textContent='Sign In'; toast('Signed out'); }
+  if (tok) { if (CU) CU.signOut(); _onSignedOut(); toast('Signed out'); }
   else openMod();
+}
+let _acctOpen = false;
+function toggleAcctDrop() {
+  _acctOpen = !_acctOpen;
+  document.getElementById('acctDrop').classList.toggle('open', _acctOpen);
+}
+function closeAcctDrop() {
+  _acctOpen = false;
+  const d = document.getElementById('acctDrop'); if(d) d.classList.remove('open');
 }
 function switchTab(t) {
   tab = t;
@@ -1698,7 +1924,7 @@ async function doAuth() {
     const ad=new AmazonCognitoIdentity.AuthenticationDetails({Username:email,Password:pass});
     CU=new AmazonCognitoIdentity.CognitoUser({Username:email,Pool:UP});
     CU.authenticateUser(ad,{
-      onSuccess(r){btn.disabled=false;tok=r.getIdToken().getJwtToken();document.getElementById('anb').textContent='Sign Out';closeMod();toast('Welcome back, '+email.split('@')[0]+'!');},
+      onSuccess(r){btn.disabled=false;tok=r.getIdToken().getJwtToken();_onSignedIn();closeMod();toast('Welcome back, '+email.split('@')[0]+'!');},
       onFailure(e){btn.disabled=false;setSt(e.message||'Sign in failed.','err');}
     });
   }
@@ -1706,6 +1932,19 @@ async function doAuth() {
 
 // ── Photographer Profile ──────────────────────────────────────────────────
 let _profile = null;
+
+function _setProfileAvatar(elId, url, initial, size) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (url) {
+    el.innerHTML = `<img src="${url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;display:block;" alt="" onerror="this.parentNode.textContent='${initial}'">`;
+    el.style.background = 'none';
+  } else {
+    el.innerHTML = '';
+    el.textContent = initial;
+    el.style.background = '';
+  }
+}
 
 async function loadProfile() {
   try {
@@ -1717,8 +1956,9 @@ async function loadProfile() {
     // Populate bio strip
     const name = _profile.displayName || 'Photographer';
     const initial = name.charAt(0).toUpperCase();
-    document.getElementById('ph-avatar').textContent = initial;
-    document.getElementById('prm-avatar').textContent = initial;
+    const avatarUrl = _profile.avatarUrl || '';
+    _setProfileAvatar('ph-avatar', avatarUrl, initial, 40);
+    _setProfileAvatar('prm-avatar', avatarUrl, initial, 60);
     document.getElementById('ph-name').textContent = name;
     document.getElementById('ph-bio-short').textContent = _profile.bio || '';
     if (name || _profile.bio) {
@@ -1765,10 +2005,6 @@ async function loadProfile() {
       document.getElementById('prm-empty').style.display = 'none';
     }
   } catch(e) { /* profile is optional, fail silently */ }
-}
-
-function openProfileModal() {
-  document.getElementById('prm').classList.add('open');
 }
 
 function openProfileModal() {
@@ -1868,8 +2104,9 @@ function openWallPreview() {
   if (!lbPhoto) return;
   const wall = document.getElementById('lbWall');
   const img  = document.getElementById('lbWallImg');
+  if (!wall || !img) return;
   img.src = lbPhoto.previewUrl || lbPhoto.thumbnailUrl || '';
-  _applyWallSize(_wallSize);
+  try { _applyWallSize(_wallSize); } catch(e) {}
   wall.classList.add('open');
 }
 
@@ -1877,11 +2114,21 @@ function closeWallPreview() {
   document.getElementById('lbWall').classList.remove('open');
 }
 
+function _applyWallSize(sz) {
+  const cfg   = WALL_SIZES[sz] || WALL_SIZES.m;
+  const frame = document.getElementById('lbWallFrame');
+  const lbl   = document.getElementById('lbWallLabel');
+  if (!frame) return;
+  frame.style.width   = cfg.w + 'px';
+  frame.style.height  = cfg.h + 'px';
+  frame.style.padding = cfg.mat + 'px';
+  if (lbl) lbl.textContent = cfg.label;
+}
+
 function setWallSize(sz) {
   _wallSize = sz;
   document.querySelectorAll('.lb-wsz').forEach(b => b.classList.toggle('active', b.dataset.sz === sz));
   _applyWallSize(sz);
-  label.textContent = cfg.label;
 }
 
 
@@ -1900,7 +2147,7 @@ async function toggleSeriesSection() {
   const sec = document.getElementById('seriesSection');
   const btn = document.getElementById('seriesToggleBtn');
   _seriesOpen = !_seriesOpen;
-  sec.style.display = _seriesOpen ? '' : 'none';
+  sec.style.display = _seriesOpen ? 'block' : 'none';
   if (btn) btn.classList.toggle('active', _seriesOpen);
   if (_seriesOpen && !_seriesCache) await _loadSeriesBrowse();
 }
@@ -1910,9 +2157,16 @@ async function _loadSeriesBrowse() {
   if (!grid) return;
   grid.innerHTML = '<div style="color:rgba(255,255,255,.4);font-size:13px">Loading…</div>';
   try {
-    // Get all series — public endpoint, no auth needed
-    // Determine photographerId from the page config if set, else list from gallery
-    const r = await fetch(CONFIG.ApiBase + '/series?' + new URLSearchParams({photographerId: CONFIG.PhotographerId||''}));
+    // Get all series — public endpoint, no auth needed.
+    // photographerCognitoSub is stored in the profile record (set on PUT /profile).
+    // If _profile hasn't loaded yet, fetch it now.
+    if (!_profile) await loadProfile();
+    const pgSub = (_profile && _profile.photographerCognitoSub) || '';
+    if (!pgSub) {
+      grid.innerHTML = '<div style="color:rgba(255,255,255,.4);font-size:13px;padding:20px 0">No series published yet.</div>';
+      return;
+    }
+    const r = await fetch(C.ApiBase + '/series?' + new URLSearchParams({photographerId: pgSub}));
     if (!r.ok) throw new Error(await r.text());
     const { series } = await r.json();
     _seriesCache = series || [];
@@ -1923,183 +2177,92 @@ async function _loadSeriesBrowse() {
     grid.innerHTML = _seriesCache.map(s => `
       <div class="sbcard" onclick="openSeriesDetail('${s.seriesId}')">
         <div class="sbcard-cover">
-          ${s.coverPhotoId ? `<img src="" data-sbcover="${s.seriesId}" alt="">` : `<div class="sbcard-cover-empty"><i class="ti ti-photos"></i></div>`}
+          ${s.coverThumbUrl
+            ? `<img src="${s.coverThumbUrl}" alt="${_esc(s.title)}">`
+            : `<div class="sbcard-cover-empty"><i class="ti ti-photo"></i></div>`}
         </div>
         <div class="sbcard-info">
-          <div class="sbcard-title">${_sbEsc(s.title)}</div>
-          <div class="sbcard-meta">${s.photoCount} photo${s.photoCount!==1?'s':''}</div>
-          ${s.description ? `<div class="sbcard-desc">${_sbEsc(s.description)}</div>` : ''}
+          <div class="sbcard-title">${_esc(s.title)}</div>
+          <div class="sbcard-meta">${s.photoCount || 0} print${s.photoCount !== 1 ? 's' : ''}</div>
+          ${s.description ? `<div class="sbcard-desc">${_esc(s.description)}</div>` : ''}
         </div>
-      </div>`).join('');
-    // lazy-load cover images
-    _loadSbCovers();
-  } catch (e) {
-    grid.innerHTML = `<div style="color:rgba(231,76,60,.8);font-size:13px">${e.message}</div>`;
+      </div>
+    `).join('');
+  } catch (err) {
+    if (grid) grid.innerHTML = '<div style="color:rgba(255,255,255,.4);font-size:13px">Failed to load series.</div>';
+    console.error('[series] browse failed', err);
   }
 }
 
-async function _loadSbCovers() {
-  document.querySelectorAll('[data-sbcover]').forEach(async img => {
-    const sid    = img.dataset.sbcover;
-    const series = (_seriesCache || []).find(s => s.seriesId === sid);
-    if (!series) return;
-    // Fetch one series to get cover thumbnail URL
-    try {
-      const r = await fetch(`${CONFIG.ApiBase}/series?seriesId=${encodeURIComponent(sid)}`);
-      if (!r.ok) return;
-      const data = await r.json();
-      const photos = data.photos || [];
-      const cover  = photos.find(p => p.photoId === data.coverPhotoId) || photos[0];
-      if (cover && cover.thumbnailUrl) {
-        img.src     = cover.thumbnailUrl;
-        img.onerror = () => img.style.display = 'none';
-      }
-    } catch { /* ignore */ }
-  });
-}
+// ── Series detail modal ────────────────────────────────────────────────────
 
 async function openSeriesDetail(seriesId) {
   const modal = document.getElementById('seriesDetailModal');
+  if (!modal) return;
+  modal.classList.add('open');
   document.getElementById('sdmTitle').textContent = 'Loading…';
   document.getElementById('sdmDesc').textContent  = '';
   document.getElementById('sdmMeta').textContent  = '';
-  document.getElementById('sdmStrip').innerHTML   = '';
-  modal.classList.add('open');
+  document.getElementById('sdmStrip').innerHTML   = '<div class="sdm-empty">Loading…</div>';
   try {
-    const r = await fetch(`${CONFIG.ApiBase}/series?seriesId=${encodeURIComponent(seriesId)}`);
+    const r = await fetch(C.ApiBase + '/series?' + new URLSearchParams({seriesId}));
     if (!r.ok) throw new Error(await r.text());
-    const data   = await r.json();
-    const photos = data.photos || [];
-    document.getElementById('sdmTitle').textContent = data.title || 'Series';
-    document.getElementById('sdmDesc').textContent  = data.description || '';
-    document.getElementById('sdmMeta').textContent  = `${photos.length} photo${photos.length!==1?'s':''} · ${_sbFmtDate(data.createdAt)}`;
+    const s = await r.json();
+    document.getElementById('sdmTitle').textContent = s.title || 'Untitled';
+    document.getElementById('sdmDesc').textContent  = s.description || '';
+    const photos = s.photos || [];
+    document.getElementById('sdmMeta').textContent  =
+      `${photos.length} print${photos.length !== 1 ? 's' : ''}`;
     if (!photos.length) {
-      document.getElementById('sdmStrip').innerHTML = '<div class="sdm-empty">No photos in this series yet.</div>';
+      document.getElementById('sdmStrip').innerHTML =
+        '<div class="sdm-empty">No photos in this series yet.</div>';
       return;
     }
     document.getElementById('sdmStrip').innerHTML = photos.map((p, i) => `
-      <div class="sdm-photo" onclick="closeSeriesDetail();openLB(${JSON.stringify(p)})">
-        <img src="${p.thumbnailUrl||''}" alt="${_sbEsc(p.title||'')}">
-        <div class="sdm-photo-num">${i+1}</div>
-      </div>`).join('');
-  } catch (e) {
-    document.getElementById('sdmStrip').innerHTML = `<div class="sdm-empty" style="color:rgba(231,76,60,.8)">${e.message}</div>`;
+      <div class="sdm-photo" data-photoid="${p.photoId}" onclick="_sdmOpenPhoto(${i})">
+        <img src="${p.thumbnailUrl || ''}" loading="lazy" alt="${_esc(p.title || '')}">
+        <div class="sdm-photo-num">${i + 1}</div>
+      </div>
+    `).join('');
+    // Stash photos for lightbox navigation from series
+    _sdmPhotos = photos;
+  } catch (err) {
+    document.getElementById('sdmStrip').innerHTML =
+      '<div class="sdm-empty">Failed to load series.</div>';
+    console.error('[seriesDetail] failed', err);
   }
+}
+
+let _sdmPhotos = [];
+function _sdmOpenPhoto(idx) {
+  const p = _sdmPhotos[idx];
+  if (!p) return;
+  // Build minimal photo object compatible with openLB
+  openLB({
+    photoId:      p.photoId,
+    thumbnailUrl: p.thumbnailUrl || '',
+    previewUrl:   p.thumbnailUrl || '',
+    title:        p.title || '',
+    tags:         p.tags || [],
+    likes:        p.likes || 0,
+  });
 }
 
 function closeSeriesDetail() {
-  document.getElementById('seriesDetailModal').classList.remove('open');
+  const modal = document.getElementById('seriesDetailModal');
+  if (modal) modal.classList.remove('open');
 }
 
-function _sbEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function _sbFmtDate(iso) { try { return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch { return ''; } }
-
-// Close series detail on Escape (already handled globally, but defensive)
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeSeriesDetail();
+// Backdrop click closes modal
+document.addEventListener('click', e => {
+  const modal = document.getElementById('seriesDetailModal');
+  if (modal && e.target === modal) closeSeriesDetail();
 });
 
-
-
-/* ===== My Collection — buyer's purchased photos =====
- * AWS Cert Note (SAA-C03): CollectionsTable uses (buyerId PK, photoId SK) —
- * a single DynamoDB Query on buyerId returns the entire collection in O(n).
- * Re-download URLs are presigned 15-minute S3 GET URLs generated per-request.
- */
-
-let _colLoaded = false;
-
-async function openMyCollection() {
-  if (!tok) { authNav(); return; }
-  document.getElementById('collectionModal').classList.add('open');
-  if (!_colLoaded) await _loadCollection();
-}
-
-function closeMyCollection() {
-  document.getElementById('collectionModal').classList.remove('open');
-}
-
-async function _loadCollection() {
-  const grid = document.getElementById('colGrid');
-  const meta = document.getElementById('colHeaderMeta');
-  grid.innerHTML = '<div class="col-loading"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Loading your collection…</div>';
-  try {
-    const r = await fetch(CONFIG.ApiBase + '/my-collection', {
-      headers: { Authorization: tok },
-    });
-    if (!r.ok) throw new Error(await r.text());
-    const { photos, count } = await r.json();
-    _colLoaded = true;
-    if (meta) meta.textContent = count === 0 ? 'No purchases yet' : `${count} photo${count!==1?'s':''} purchased`;
-    if (!photos || !photos.length) {
-      grid.innerHTML = '<div class="col-empty"><i class="ti ti-shopping-bag" style="font-size:32px;display:block;margin-bottom:12px;opacity:.4"></i>You haven't purchased any photos yet.<br><br>Browse the gallery and click <strong>Add to Cart</strong> to get started.</div>';
-      return;
-    }
-    grid.innerHTML = photos.map(p => _colCard(p)).join('');
-  } catch (e) {
-    grid.innerHTML = `<div class="col-empty" style="color:rgba(231,76,60,.8)">${e.message}</div>`;
-  }
-}
-
-function _colCard(p) {
-  const TIER_LABEL = { small: 'Web (72 DPI)', medium: 'Print (150 DPI)', large: 'Pro (Full)' };
-  const tier_label = TIER_LABEL[p.tier] || p.tier;
-  const date = p.purchasedAt ? new Date(parseInt(p.purchasedAt)*1000||p.purchasedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
-  return `<div class="col-card">
-    <div class="col-thumb">
-      ${p.thumbnailUrl
-        ? `<img src="${p.thumbnailUrl}" alt="${_sbEsc(p.title||'')}" loading="lazy">`
-        : `<div class="col-thumb-empty"><i class="ti ti-photo"></i></div>`}
-    </div>
-    <div class="col-info">
-      <div class="col-title">${_sbEsc(p.title||p.photoId)}</div>
-      <div class="col-sub">${p.photographerName ? _sbEsc(p.photographerName) + ' · ' : ''}${date}</div>
-      <span class="col-tier"><i class="ti ti-license"></i> ${_sbEsc(tier_label)}</span>
-      ${p.redownloadUrl
-        ? `<button class="col-dl-btn" onclick="_colDownload('${p.redownloadUrl}','${_sbEsc(p.title||p.photoId)}')">
-             <i class="ti ti-download"></i> Re-download
-           </button>`
-        : `<button class="col-dl-btn" onclick="_colFreshDownload('${p.photoId}','${p.tier}')" style="opacity:.65">
-             <i class="ti ti-refresh"></i> Get new link
-           </button>`}
-    </div>
-  </div>`;
-}
-
-function _colDownload(url, title) {
-  const a = document.createElement('a');
-  a.href = url; a.download = title; a.target = '_blank';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-}
-
-async function _colFreshDownload(photoId, tier) {
-  // Re-fetch a fresh presigned URL by hitting the collection endpoint again
-  try {
-    const r = await fetch(CONFIG.ApiBase + '/my-collection', { headers: { Authorization: tok } });
-    if (!r.ok) throw new Error(await r.text());
-    const { photos } = await r.json();
-    const p = (photos || []).find(x => x.photoId === photoId && x.tier === tier);
-    if (p && p.redownloadUrl) _colDownload(p.redownloadUrl, p.title || photoId);
-    else toast('Download link unavailable — contact support.');
-  } catch (e) {
-    toast('Error: ' + e.message);
-  }
+function _esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 </script>
-
-<!-- My Collection modal -->
-<div id="collectionModal">
-  <div class="col-box">
-    <div class="col-header">
-      <div>
-        <div class="col-header-title"><i class="ti ti-photo-heart"></i> My Collection</div>
-        <div class="col-header-meta" id="colHeaderMeta">Your purchased photos</div>
-      </div>
-      <button class="col-close" onclick="closeMyCollection()"><i class="ti ti-x"></i></button>
-    </div>
-    <div id="colGrid" class="col-grid"></div>
-  </div>
-</div>
 </body>
 </html>

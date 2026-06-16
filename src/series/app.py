@@ -139,8 +139,25 @@ def _list_by_photographer(photographer_id: str):
         ScanIndexForward=False,   # newest first
     )
     items = resp.get("Items", [])
-    # Return lightweight list (no photo metadata) for listing
-    return _ok({"series": [_serialize(s) for s in items], "count": len(items)})
+
+    # Batch-fetch cover thumbnails in one DynamoDB round-trip
+    cover_thumb_map = {}
+    cover_ids = [s["coverPhotoId"] for s in items if s.get("coverPhotoId")]
+    if cover_ids and METADATA_TABLE and THUMBS_URL:
+        keys = [{"photoId": pid} for pid in cover_ids[:100]]
+        br = ddb.batch_get_item(RequestItems={METADATA_TABLE: {"Keys": keys}})
+        for meta in br.get("Responses", {}).get(METADATA_TABLE, []):
+            thumb_key = meta.get("thumbnailKey", "")
+            if thumb_key:
+                cover_thumb_map[meta["photoId"]] = f"{THUMBS_URL}/{thumb_key}"
+
+    serialized = []
+    for s in items:
+        obj = _serialize(s)
+        obj["coverThumbUrl"] = cover_thumb_map.get(s.get("coverPhotoId", ""), "")
+        serialized.append(obj)
+
+    return _ok({"series": serialized, "count": len(serialized)})
 
 
 # ── UPDATE ────────────────────────────────────────────────────────────────────

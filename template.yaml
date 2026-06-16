@@ -187,7 +187,7 @@ Resources:
             return event;
         };
       Handler: index.handler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Timeout: 5
       Environment:
         Variables:
@@ -930,6 +930,26 @@ Resources:
   # who registers in us-east-1 can seamlessly use the eu-west-1 API endpoint
   # without re-registering.
   # ===========================================================================
+  # Add CORS headers to authorizer rejections (4xx) and Lambda errors (5xx)
+  # Without these, the browser sees a CORS error instead of a 401/500.
+  GatewayResponseDefault4XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+      ResponseType: DEFAULT_4XX
+      RestApiId: !Ref GalleriaApi
+
+  GatewayResponseDefault5XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+      ResponseType: DEFAULT_5XX
+      RestApiId: !Ref GalleriaApi
+
   GalleriaApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -1014,6 +1034,8 @@ Resources:
             Path: /get-download-url
             Method: post
             RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
 
   ShoppingCartFunction:
     Type: AWS::Serverless::Function
@@ -1334,9 +1356,12 @@ Resources:
       Environment:
         Variables:
           ORIGINALS_BUCKET: !Ref OriginalsS3Bucket
+          THUMBS_BUCKET:    !Ref ThumbsS3Bucket
       Policies:
         - S3WritePolicy:
             BucketName: !Ref OriginalsS3Bucket
+        - S3WritePolicy:
+            BucketName: !Ref ThumbsS3Bucket
       Events:
         GetUploadUrl:
           Type: Api
@@ -1494,9 +1519,11 @@ Resources:
         TargetArn: !GetAtt LambdaDLQ.Arn
       Environment:
         Variables:
-          PROFILE_TABLE:  !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
-          METADATA_TABLE: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
-          THUMBS_BUCKET:  !Ref ThumbsS3Bucket
+          PROFILE_TABLE:           !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
+          METADATA_TABLE:          !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
+          THUMBS_BUCKET:           !Ref ThumbsS3Bucket
+          THUMBS_DISTRIBUTION_URL: !Sub "https://${ThumbsDistribution.DomainName}"
+          ORIGINALS_BUCKET:        !Ref OriginalsS3Bucket
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Sub ${AWS::StackName}-photographer-profile-${AWS::AccountId}
@@ -1504,6 +1531,10 @@ Resources:
             TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
         - S3ReadPolicy:
             BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Ref OriginalsS3Bucket
+        - S3WritePolicy:
+            BucketName: !Ref ThumbsS3Bucket
       Events:
         GetProfile:
           Type: Api
@@ -1541,6 +1572,14 @@ Resources:
           Type: Api
           Properties:
             Path: /admin/editor-choice
+            Method: post
+            RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
+        PhotoMetadata:
+          Type: Api
+          Properties:
+            Path: /photos/metadata
             Method: post
             RestApiId: !Ref GalleriaApi
             Auth:
@@ -1724,7 +1763,7 @@ Resources:
           CUSTOMER_POOL_ID: !If
             - IsPrimaryRegion
             - !Ref CustomerUserPool
-            - !Select [1, !Split ["/", !Select [1, !Split ["userpool/", !Ref PrimaryCustomerUserPoolArn]]]]
+            - !Select [1, !Split ["userpool/", !Ref PrimaryCustomerUserPoolArn]]
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Sub ${AWS::StackName}-user-consent-${AWS::AccountId}
@@ -2014,6 +2053,8 @@ Resources:
             Path: /composition-feedback
             Method: get
             RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
 
 
   # ===========================================================================
@@ -2083,24 +2124,32 @@ Resources:
             Path: /series
             Method: post
             RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
         SeriesGet:
           Type: Api
           Properties:
             Path: /series
             Method: get
             RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: NONE
         SeriesPut:
           Type: Api
           Properties:
             Path: /series
             Method: put
             RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
         SeriesDelete:
           Type: Api
           Properties:
             Path: /series
             Method: delete
             RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
 
   # ===========================================================================
   # LAMBDA — AUDIO STORY (voice note per photo)
@@ -2132,12 +2181,16 @@ Resources:
             Path: /audio-story
             Method: post
             RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
         AudioStoryDelete:
           Type: Api
           Properties:
             Path: /audio-story
             Method: delete
             RestApiId: !Ref GalleriaApi
+            Auth:
+              Authorizer: PhotographerCognito
 
   # ===========================================================================
   # LAMBDA — INDIVIDUAL PIPELINE EFFECT FUNCTIONS
@@ -2356,7 +2409,7 @@ Resources:
   PurchaserWebBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub ${AWS::StackName}-purchaser-${AWS::AccountId}
+      BucketName: !Sub ${AWS::StackName}-purchaser-${AWS::Region}-${AWS::AccountId}
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -2528,6 +2581,7 @@ Resources:
   # ===========================================================================
   CanaryArtifactsBucket:
     Type: AWS::S3::Bucket
+    Condition: IsPrimaryRegion
     Properties:
       BucketName: !Sub ${AWS::StackName}-canary-${AWS::AccountId}
       PublicAccessBlockConfiguration:
@@ -2538,6 +2592,7 @@ Resources:
 
   CloudWatchSyntheticsRole:
     Type: AWS::IAM::Role
+    Condition: IsPrimaryRegion
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -2571,6 +2626,7 @@ Resources:
 
   UserExperienceCanary:
     Type: AWS::Synthetics::Canary
+    Condition: IsPrimaryRegion
     Properties:
       Name: !Sub "galleria-ux-${AWS::Region}"
       ExecutionRoleArn: !GetAtt CloudWatchSyntheticsRole.Arn

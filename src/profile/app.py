@@ -24,8 +24,11 @@ CORS = {
     "Access-Control-Allow-Methods": "GET,PUT,POST,OPTIONS",
 }
 
-PROFILE_PK = "PHOTOGRAPHER_PROFILE"
-URL_TTL    = 3600
+PROFILE_PK       = "PHOTOGRAPHER_PROFILE"
+URL_TTL          = 3600
+THUMBS_URL       = os.environ.get("THUMBS_DISTRIBUTION_URL", "").rstrip("/")
+THUMBS_BUCKET    = os.environ.get("THUMBS_BUCKET", "")
+ORIGINALS_BUCKET = os.environ.get("ORIGINALS_BUCKET", "")
 
 
 def handler(event, context):
@@ -116,11 +119,77 @@ def handler(event, context):
             "body":       json.dumps({"photoId": photo_id, "editorChoice": enabled}),
         }
 
+    # ── POST /photos/metadata ─────────────────────────────────────────────
+    # Lightweight metadata update — saves category and/or colorMood directly
+    # to DynamoDB without triggering the full image-processing pipeline.
+    # This is the right tool for tagging existing photos; re-processing is
+    # only needed when the photographer wants to change image adjustments.
+    if method == "POST" and path.endswith("/photos/metadata"):
+        try:
+            body = json.loads(event.get("body") or "{}")
+        except Exception:
+            return _err(400, "Invalid JSON")
+
+        photo_id = body.get("photoId", "").strip()
+        if not photo_id:
+            return _err(400, "photoId required")
+
+        VALID_CATEGORIES = {
+            "abstract","aerial","animals","bw","boudoir","celebrities","city",
+            "commercial","concert","family","fashion","film","fineart","food",
+            "journalism","landscape","macro","nature","night","people","performing",
+            "sport","stilllife","street","transportation","travel","underwater",
+            "urbex","wedding","other",""
+        }
+        VALID_MOODS = {"warm","cool","green","purple","neutral","dark","light",""}
+
+        update_parts, expr_values, expr_names = [], {}, {}
+
+        category = body.get("category", None)
+        if category is not None:
+            cat = category.strip().lower()
+            if cat not in VALID_CATEGORIES:
+                return _err(400, f"Invalid category: {cat}")
+            update_parts.append("#cat = :cat")
+            expr_names["#cat"] = "category"
+            expr_values[":cat"] = cat
+
+        color_mood = body.get("colorMood", None)
+        if color_mood is not None:
+            mood = color_mood.strip().lower()
+            if mood not in VALID_MOODS:
+                return _err(400, f"Invalid colorMood: {mood}")
+            update_parts.append("colorMood = :mood")
+            expr_values[":mood"] = mood
+
+        if not update_parts:
+            return _err(400, "Nothing to update — provide category and/or colorMood")
+
+        # Always ensure uploadedAt exists — it's the GSI sort key for category-uploadedAt-index.
+        # Photos uploaded before the GSI was added may be missing it.
+        now_iso = datetime.now(timezone.utc).isoformat()
+        update_parts.append("uploadedAt = if_not_exists(uploadedAt, :_now)")
+        expr_values[":_now"] = now_iso
+
+        ddb.Table(os.environ["METADATA_TABLE"]).update_item(
+            Key={"photoId": photo_id},
+            UpdateExpression="SET " + ", ".join(update_parts),
+            ExpressionAttributeValues=expr_values,
+            **({"ExpressionAttributeNames": expr_names} if expr_names else {}),
+        )
+        _annotate(photoId=photo_id, action="metadata_update")
+        return {"statusCode": 200, "headers": CORS,
+                "body": json.dumps({"photoId": photo_id, "updated": list(body.keys())})}
+
     # ── GET /profile ──────────────────────────────────────────────────────
     if method == "GET":
         resp    = ddb.Table(os.environ["PROFILE_TABLE"]).get_item(Key={"profileId": PROFILE_PK})
         profile = resp.get("Item", {})
         profile.pop("profileId", None)
+        # Build avatarUrl from stored key if not already set
+        avatar_key = profile.get("avatarKey", "")
+        if avatar_key and THUMBS_URL and "avatarUrl" not in profile:
+            profile["avatarUrl"] = f"{THUMBS_URL}/{avatar_key}"
         return {"statusCode": 200, "headers": CORS, "body": json.dumps(profile or {})}
 
     # ── PUT /profile ──────────────────────────────────────────────────────
@@ -140,33 +209,66 @@ def handler(event, context):
             "notes": str(eq.get("notes", ""))[:200],
         } for eq in equipment[:20] if isinstance(eq, dict)]
 
+        # Grab the photographer's Cognito sub from the validated JWT claims
+        # so the customer portal knows which photographerId to use for series queries.
+        claims = (event.get("requestContext") or {}).get("authorizer", {}).get("claims", {})
+        cognito_sub = claims.get("sub", "")
+
         item = {
-            "profileId":     PROFILE_PK,
-            "displayName":   str(body.get("displayName",   ""))[:100],
-            "bio":           str(body.get("bio",           ""))[:3000],
-            "location":      str(body.get("location",      ""))[:100],
-            "website":       str(body.get("website",       ""))[:200],
-            "instagram":     str(body.get("instagram",     ""))[:100],
-            "watermarkText": str(body.get("watermarkText", ""))[:120],
-            "equipment":     clean_eq,
-            "updatedAt":     datetime.now(timezone.utc).isoformat(),
+            "profileId":              PROFILE_PK,
+            "displayName":            str(body.get("displayName",   ""))[:100],
+            "bio":                    str(body.get("bio",           ""))[:3000],
+            "location":               str(body.get("location",      ""))[:100],
+            "website":                str(body.get("website",       ""))[:200],
+            "instagram":              str(body.get("instagram",     ""))[:100],
+            "watermarkText":          str(body.get("watermarkText", ""))[:120],
+            "equipment":              clean_eq,
+            "updatedAt":              datetime.now(timezone.utc).isoformat(),
         }
+        if cognito_sub:
+            item["photographerCognitoSub"] = cognito_sub
+        avatar_key = str(body.get("avatarKey", "")).strip()
+        if avatar_key and ORIGINALS_BUCKET and THUMBS_BUCKET:
+            # Copy from originals (where browser PUT it) → thumbs (CloudFront-served)
+            dest_key = "avatars/avatar.jpg"
+            try:
+                s3.copy_object(
+                    CopySource={"Bucket": ORIGINALS_BUCKET, "Key": avatar_key},
+                    Bucket=THUMBS_BUCKET,
+                    Key=dest_key,
+                    ContentType="image/jpeg",
+                    MetadataDirective="REPLACE",
+                )
+                item["avatarKey"] = dest_key
+                if THUMBS_URL:
+                    item["avatarUrl"] = f"{THUMBS_URL}/{dest_key}"
+            except Exception as e:
+                print(f"Avatar copy failed: {e}")
+        elif avatar_key:
+            item["avatarKey"] = avatar_key
+
         ddb.Table(os.environ["PROFILE_TABLE"]).put_item(Item=item)
         item.pop("profileId", None)
-        return {"statusCode": 200, "headers": CORS, "body": json.dumps({"message": "saved", "profile": item})}
+        return {
+            "statusCode": 200,
+            "headers":    CORS,
+            "body":       json.dumps({"message": "saved", "profile": item}),
+        }
 
     return _err(405, "Method not allowed")
 
 
-def _err(code, msg):
+# ── helpers ───────────────────────────────────────────────────────────────────
+
+def _err(code: int, msg: str):
     return {"statusCode": code, "headers": CORS, "body": json.dumps({"error": msg})}
 
 
 def _annotate(**kwargs):
+    """Add key/value annotations to the current X-Ray segment (best-effort)."""
     try:
         seg = xray_recorder.current_subsegment() or xray_recorder.current_segment()
-        if seg:
-            for k, v in kwargs.items():
-                seg.put_annotation(k, str(v))
+        for k, v in kwargs.items():
+            seg.put_annotation(k, str(v))
     except Exception:
         pass

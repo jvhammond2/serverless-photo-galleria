@@ -117,25 +117,42 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 .file-selected{margin-top:10px;padding:9px 14px;background:var(--bg-surface);
   border-radius:7px;font-size:12.5px;color:var(--text-1);display:none;align-items:center;gap:8px;}
 .file-selected.visible{display:flex;}
-.effects-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(126px,1fr));gap:7px;}
-.effects-grid.compact{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:5px;}
-.ec{background:var(--bg-surface);border:1.5px solid var(--border);border-radius:8px;
-  padding:11px 10px;cursor:pointer;transition:border-color .13s,background .13s;user-select:none;position:relative;}
-.ec.compact{padding:8px;}
-.ec:hover{border-color:var(--border-hi);}
-.ec.on{border-color:var(--gold);background:var(--gold-dim);}
-.ec i.effect-icon{font-size:17px;color:var(--text-2);display:block;margin-bottom:7px;}
-.ec.compact i.effect-icon{font-size:14px;margin-bottom:4px;}
-.ec.on i.effect-icon{color:var(--gold);}
-.ec-check{position:absolute;top:6px;right:7px;font-size:10px;color:var(--gold);opacity:0;transition:opacity .13s;}
-.ec.on .ec-check{opacity:1;}
-.ec-name{font-size:11.5px;font-weight:500;color:var(--text-1);margin-bottom:3px;}
-.ec.compact .ec-name{font-size:10.5px;margin-bottom:0;}
-.ec-desc{font-size:10.5px;color:var(--text-3);line-height:1.4;}
-.ec.compact .ec-desc{display:none;}
-.ec.on .ec-name{color:var(--gold);}
-.pipeline-summary{font-size:12px;color:var(--text-2);margin:10px 0 0;min-height:18px;}
-.pipeline-summary b{color:var(--gold);font-weight:500;}
+/* ── Adjustment Panel ─────────────────────────────────────────────── */
+.adj-panel{background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.filter-strip-outer{padding:12px 14px 0;overflow-x:auto;scrollbar-width:none;}
+.filter-strip-outer::-webkit-scrollbar{display:none;}
+.filter-strip{display:flex;gap:6px;padding-bottom:12px;}
+.fp{border:1px solid var(--border);border-radius:20px;padding:4px 13px;font-size:11.5px;font-weight:500;
+  cursor:pointer;white-space:nowrap;background:var(--bg-base);color:var(--text-2);transition:all .15s;user-select:none;}
+.fp:hover{border-color:var(--border-hi);color:var(--text-1);}
+.fp.active{background:var(--text-1);color:var(--bg-base);border-color:var(--text-1);}
+.adj-divider{height:1px;background:var(--border);margin:0 14px;}
+.adj-grp{border-bottom:1px solid var(--border);}
+.adj-grp:last-of-type{border-bottom:none;}
+.adj-grp-head{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;}
+.adj-grp-icon{font-size:14px;color:var(--text-2);}
+.adj-grp-label{font-size:12.5px;font-weight:500;color:var(--text-1);flex:1;}
+.adj-badge{font-size:11px;background:var(--bg-base);border-radius:10px;padding:2px 7px;color:var(--text-3);
+  border:1px solid var(--border);min-width:20px;text-align:center;}
+.adj-badge.has{background:var(--text-1);color:var(--bg-base);border-color:var(--text-1);}
+.adj-chev{font-size:13px;color:var(--text-3);transition:transform .2s;}
+.adj-chev.open{transform:rotate(180deg);}
+.adj-grp-body{padding:0 14px 10px;display:none;}
+.adj-grp-body.open{display:block;}
+.adj-row{display:flex;align-items:center;gap:9px;padding:5px 0;}
+.adj-lbl{font-size:11.5px;color:var(--text-2);width:108px;flex-shrink:0;}
+.adj-range{flex:1;height:4px;accent-color:var(--text-1);cursor:pointer;}
+.adj-num{font-size:11.5px;font-weight:500;color:var(--text-1);width:30px;text-align:right;flex-shrink:0;}
+.adj-rst{width:16px;height:16px;border-radius:50%;background:var(--text-1);color:var(--bg-base);
+  font-size:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .15s;flex-shrink:0;border:none;padding:0;}
+.adj-rst.show{opacity:1;}
+.adj-summary{display:flex;align-items:center;justify-content:space-between;
+  padding:9px 14px;background:var(--bg-base);border-top:1px solid var(--border);}
+.adj-summary-text{font-size:11.5px;color:var(--text-2);}
+.adj-summary-text b{color:var(--text-1);font-weight:500;}
+.adj-reset-all{font-size:11.5px;color:var(--text-3);background:none;border:none;cursor:pointer;padding:0;}
+.adj-reset-all:hover{color:var(--text-1);}
 .edition-row{display:flex;align-items:center;gap:14px;background:var(--bg-surface);
   border:1px solid var(--border);border-radius:8px;padding:13px 15px;}
 .toggle{width:36px;height:20px;background:var(--border);border-radius:10px;
@@ -187,8 +204,11 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 #lb.open{display:flex;}
 .lb-wrap{position:relative;max-width:960px;width:100%;background:var(--bg-card);
   border:1px solid var(--border);border-radius:14px;overflow:hidden;margin:auto;}
-.lb-img-wrap{background:#000;display:flex;align-items:center;justify-content:center;max-height:62vh;overflow:hidden;}
-.lb-img{max-width:100%;max-height:62vh;object-fit:contain;display:block;}
+.lb-img-wrap{background:#000;display:flex;align-items:center;justify-content:center;max-height:62vh;overflow:hidden;position:relative;}
+.lb-img{max-width:100%;max-height:62vh;object-fit:contain;display:block;transition:filter .05s linear;}
+#lbVignette{position:absolute;inset:0;pointer-events:none;border-radius:0;
+  background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,1) 100%);
+  opacity:0;transition:opacity .05s linear;}
 .lb-footer{padding:16px 20px;border-top:1px solid var(--border);}
 .lb-top-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}
 .lb-info{flex:1;min-width:0;}
@@ -318,6 +338,14 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 
 /* Profile view */
 .profile-form{max-width:680px;}
+.pf-avatar-wrap{display:flex;align-items:center;gap:20px;margin-bottom:24px;padding:20px;background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;}
+.pf-avatar{width:80px;height:80px;border-radius:50%;object-fit:cover;background:var(--bg-card);display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;color:var(--gold);border:2px solid var(--border);flex-shrink:0;}
+.pf-avatar img{width:80px;height:80px;border-radius:50%;object-fit:cover;display:block;}
+.pf-avatar-info{flex:1;min-width:0;}
+.pf-avatar-info p{font-size:12px;color:var(--text-2);margin:4px 0 0;}
+/* Sidebar avatar */
+.sidebar-avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;background:var(--bg-card);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--gold);border:1.5px solid var(--border);flex-shrink:0;}
+.sidebar-avatar img{width:32px;height:32px;border-radius:50%;object-fit:cover;display:block;}
 .pf-row{margin-bottom:16px;}
 .pf-label{font-size:11.5px;font-weight:500;color:var(--text-2);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;}
 .pf-input{width:100%;padding:9px 13px;background:var(--bg-surface);border:1.5px solid var(--border);border-radius:8px;
@@ -524,7 +552,7 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
   </nav>
   <div class="sidebar-footer">
     <div class="user-row" onclick="doSignOut()">
-      <div class="avatar" id="userAvatar">?</div>
+      <div class="sidebar-avatar" id="userAvatar"><span id="userAvatarInitial">?</span></div>
       <div>
         <div class="user-name" id="userName">Loading…</div>
         <div class="user-plan"><span data-i18n="user.plan">Pro Photographer</span> · <span data-i18n="user.sign_out">Sign out</span></div>
@@ -570,13 +598,6 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
         </div>
       </div>
       <div class="card">
-        <div class="section-head">
-          <div><div class="section-title" data-i18n="upload.pipeline_title">AI Processing Pipeline</div>
-          <div class="section-sub" data-i18n="upload.pipeline_sub">Select effects — applied server-side via Lambda + Step Functions</div></div>
-        </div>
-        <div class="effects-grid" id="effectsGrid"></div>
-        <div class="pipeline-summary" id="pipelineSummary" data-i18n="upload.no_effects">No effects selected — original only</div>
-        <div class="divider"></div>
         <div class="edition-row">
           <div class="toggle" id="editionToggle" onclick="toggleEdition()"><div class="toggle-thumb"></div></div>
           <div>
@@ -725,6 +746,18 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
           </div>
         </div>
         <div class="profile-form">
+          <!-- Avatar upload -->
+          <div class="pf-avatar-wrap">
+            <div class="pf-avatar" id="pf-avatar-display">
+              <span id="pf-avatar-initial">?</span>
+            </div>
+            <div class="pf-avatar-info">
+              <div class="pf-label" style="margin-bottom:8px;">Profile Photo</div>
+              <input type="file" id="pf-avatar-input" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="uploadAvatar(this)">
+              <button class="btn btn-ghost" style="font-size:12px;padding:5px 12px;" onclick="document.getElementById('pf-avatar-input').click()"><i class="ti ti-camera"></i> Change Photo</button>
+              <p>JPEG, PNG or WebP. Shown on your public profile.</p>
+            </div>
+          </div>
           <div class="pf-row">
             <div class="pf-label" data-i18n="profile.display_name">Display Name</div>
             <input class="pf-input" type="text" id="prof-name" placeholder="Your photographer name" data-i18n-placeholder="profile.ph_name">
@@ -842,6 +875,7 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
     <div class="lb-close" onclick="closeLB()"><i class="ti ti-x"></i></div>
     <div class="lb-img-wrap">
       <img id="lbImg" class="lb-img" src="" alt="">
+      <div id="lbVignette"></div>
     </div>
     <div class="lb-footer">
       <div class="lb-top-row">
@@ -862,7 +896,7 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
             <i class="ti ti-brain"></i> AI Feedback
           </button>
           <button class="btn btn-ghost" onclick="toggleReprocess()" id="lbRpBtn">
-            <i class="ti ti-settings"></i> <span data-i18n="lightbox.reprocess">Re-process</span>
+            <i class="ti ti-adjustments"></i> <span data-i18n="lightbox.reprocess">Adjustments</span>
           </button>
           <button class="btn btn-danger" onclick="confirmDelete()">
             <i class="ti ti-trash"></i> <span data-i18n="lightbox.delete">Delete</span>
@@ -875,10 +909,64 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
       <div class="lb-aifb" id="lbAiFb"></div>
       <!-- Re-process panel -->
       <div class="lb-reprocess" id="lbReprocess">
-        <div class="lb-reprocess-title" data-i18n="lightbox.reprocess_title">Select new effects and re-run the processing pipeline:</div>
-        <div class="effects-grid compact" id="lbEffectsGrid"></div>
-        <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
-          <button class="btn btn-primary" onclick="doReprocess()" id="lbApplyBtn">
+        <div class="lb-reprocess-title" data-i18n="lightbox.reprocess_title">Adjust &amp; Process Photo:</div>
+        <div class="adj-panel" id="lbAdjPanel" style="margin-bottom:12px"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <i class="ti ti-tag" style="color:var(--text-2);font-size:15px;flex-shrink:0;"></i>
+          <span style="font-size:12px;color:var(--text-2);flex-shrink:0;">Category</span>
+          <select id="lbCategorySelect" class="cat-select" style="flex:1;max-width:220px;">
+            <option value="">— Uncategorized —</option>
+            <option value="other">Other</option>
+            <option value="abstract">Abstract</option>
+            <option value="aerial">Aerial</option>
+            <option value="animals">Animals</option>
+            <option value="bw">Black &amp; White</option>
+            <option value="boudoir">Boudoir</option>
+            <option value="celebrities">Celebrities</option>
+            <option value="city">City &amp; Architecture</option>
+            <option value="commercial">Commercial</option>
+            <option value="concert">Concert</option>
+            <option value="family">Family</option>
+            <option value="fashion">Fashion</option>
+            <option value="film">Film</option>
+            <option value="fineart">Fine Art</option>
+            <option value="food">Food</option>
+            <option value="journalism">Journalism</option>
+            <option value="landscape">Landscape</option>
+            <option value="macro">Macro</option>
+            <option value="nature">Nature</option>
+            <option value="night">Night</option>
+            <option value="people">People</option>
+            <option value="performing">Performing Arts</option>
+            <option value="sport">Sport</option>
+            <option value="stilllife">Still Life</option>
+            <option value="street">Street</option>
+            <option value="transportation">Transportation</option>
+            <option value="travel">Travel</option>
+            <option value="underwater">Underwater</option>
+            <option value="urbex">Urban Exploration</option>
+            <option value="wedding">Wedding</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <i class="ti ti-palette" style="color:var(--text-2);font-size:15px;flex-shrink:0;"></i>
+          <span style="font-size:12px;color:var(--text-2);flex-shrink:0;">Color Mood</span>
+          <select id="lbColorMoodSelect" class="cat-select" style="flex:1;max-width:220px;">
+            <option value="">Auto-detect</option>
+            <option value="warm">Warm Tones</option>
+            <option value="cool">Cool Tones</option>
+            <option value="green">Green Palette</option>
+            <option value="purple">Purple Palette</option>
+            <option value="neutral">Neutral</option>
+            <option value="dark">Dark &amp; Moody</option>
+            <option value="light">Light &amp; Airy</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="savePhotoMeta()" id="lbSaveMetaBtn">
+            <i class="ti ti-device-floppy"></i> Save Tags
+          </button>
+          <button class="btn btn-ghost" onclick="doReprocess()" id="lbApplyBtn">
             <i class="ti ti-player-play"></i> <span data-i18n="lightbox.apply_effects">Apply Effects</span>
           </button>
           <button class="btn btn-ghost" onclick="toggleReprocess()" data-i18n="lightbox.cancel">Cancel</button>
@@ -914,9 +1002,58 @@ const CONFIG={
 };
 const userPool=new AmazonCognitoIdentity.CognitoUserPool({UserPoolId:CONFIG.UserPoolId,ClientId:CONFIG.ClientId});
 let currentIdToken=null,currentUser=null,currentSub=null,_currentView='upload';
+function getToken(){ return currentIdToken; }
 
-// Effects definitions — names/descs are resolved at render time via i18n.t()
-// so they automatically update when the user changes language.
+// ── Adjustment Panel ────────────────────────────────────────────────────────
+// Preset filters: each auto-sets a group of slider values.
+// Presets are applied client-side (they just move sliders); the backend
+// only ever receives a flat list of {id, value} adjustment pairs.
+const FILTER_PRESETS=[
+  {id:'none',      name:'None',         adj:{}},
+  {id:'cinematic', name:'Cinematic',    adj:{contrast:20,saturation:20,shadows:-15,highlights:-8}},
+  {id:'golden',    name:'Golden Hour',  adj:{warmth:45,exposure:8,saturation:18}},
+  {id:'moody',     name:'Moody',        adj:{contrast:35,shadows:-25,saturation:-12,brightness:-8}},
+  {id:'vivid',     name:'Vivid',        adj:{saturation:55,contrast:18,definition:25}},
+  {id:'matte',     name:'Matte',        adj:{blackpoint:22,highlights:-12,saturation:-18}},
+  {id:'bw',        name:'B&amp;W',      adj:{saturation:-100}},
+  {id:'vintage',   name:'Vintage',      adj:{warmth:28,saturation:-22,vignette:35,contrast:12}},
+  {id:'portrait',  name:'Portrait',     adj:{noiseReduction:18,sharpness:14,warmth:12}},
+];
+const ADJ_GROUPS=[
+  {id:'light',  icon:'ti-sun',         label:'Light',   keys:[
+    {id:'exposure',   label:'Exposure',    min:-100,max:100},
+    {id:'brilliance', label:'Brilliance',  min:-100,max:100},
+    {id:'highlights', label:'Highlights',  min:-100,max:100},
+    {id:'shadows',    label:'Shadows',     min:-100,max:100},
+    {id:'brightness', label:'Brightness',  min:-100,max:100},
+    {id:'contrast',   label:'Contrast',    min:-100,max:100},
+    {id:'blackpoint', label:'Black Point', min:0,   max:100},
+  ]},
+  {id:'color',  icon:'ti-palette',     label:'Color',   keys:[
+    {id:'saturation',    label:'Saturation',    min:-100,max:100},
+    {id:'vibrance',      label:'Vibrance',      min:-100,max:100},
+    {id:'warmth',        label:'Warmth',        min:-100,max:100},
+    {id:'tint',          label:'Tint',          min:-100,max:100},
+  ]},
+  {id:'detail', icon:'ti-adjustments', label:'Detail',  keys:[
+    {id:'sharpness',      label:'Sharpness',       min:0,max:100},
+    {id:'definition',     label:'Definition',      min:0,max:100},
+    {id:'noiseReduction', label:'Noise Reduction', min:0,max:100},
+  ]},
+  {id:'effects',icon:'ti-wand',        label:'Effects', keys:[
+    {id:'vignette', label:'Vignette', min:0,max:100},
+  ]},
+];
+const ADJ_DEFAULTS=Object.fromEntries(ADJ_GROUPS.flatMap(g=>g.keys.map(k=>[k.id,0])));
+
+// Upload panel state
+let uploadAdj={...ADJ_DEFAULTS}, uploadPreset='none';
+// Lightbox reprocess state
+let lbAdj={...ADJ_DEFAULTS}, lbPreset='none';
+// Groups open by default
+const adjOpenGroups={upload:new Set(['light']),lb:new Set(['light'])};
+
+// Keep backward compat alias (used nowhere now but guards against stray references)
 const EFFECTS_DEF=[
   {id:'hdr',        icon:'ti-sun-high'},
   {id:'cinematic',  icon:'ti-movie'},
@@ -944,8 +1081,9 @@ function getEffects(){
 }
 // Alias for code that still references EFFECTS directly
 const EFFECTS=EFFECTS_DEF; // kept for backward compat; use getEffects() when rendering
-let selectedEffects=new Set(),isLimitedEdition=false,selectedCategory='other',selectedFile=null,selectedFiles=[];
-let lbSelectedEffects=new Set();
+let isLimitedEdition=false,selectedCategory='other',selectedFile=null,selectedFiles=[];
+// lbSelectedEffects kept as empty Set so any stray reference doesn't throw
+const lbSelectedEffects=new Set();
 let _lbPhoto=null;
 
 /* === Navigation === */
@@ -1094,10 +1232,65 @@ function onAuthSuccess(cu,session){
   const p=session.getIdToken().payload;const name=p.name||p.email||'Photographer';
   currentSub=p.sub||'';
   document.getElementById('userName').textContent=name;
-  document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
+  document.getElementById('userAvatarInitial').textContent=name.charAt(0).toUpperCase();
   document.getElementById('authScreen').classList.add('hidden');
   loadStats();loadGallery();
 }
+
+// ── Avatar helpers ────────────────────────────────────────────────────────
+let _currentAvatarKey = '';
+function _setAvatarImg(url, initial) {
+  // Profile form avatar
+  const disp = document.getElementById('pf-avatar-display');
+  if (disp) {
+    if (url) {
+      disp.innerHTML = `<img src="${url}" alt="Profile photo" onerror="this.parentNode.innerHTML='<span id=pf-avatar-initial>${initial}</span>'">`;
+    } else {
+      disp.innerHTML = `<span id="pf-avatar-initial">${initial}</span>`;
+    }
+  }
+  // Sidebar avatar
+  const sb = document.getElementById('userAvatar');
+  if (sb) {
+    if (url) {
+      sb.innerHTML = `<img src="${url}" alt="" onerror="this.parentNode.innerHTML='<span id=userAvatarInitial>${initial}</span>'">`;
+    } else {
+      document.getElementById('userAvatarInitial').textContent = initial;
+    }
+  }
+}
+
+async function uploadAvatar(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const st = document.getElementById('pf-status');
+  st.textContent = 'Uploading photo…'; st.className = 'pf-status';
+  try {
+    const tok = await getToken();
+    // Get presigned URL for avatar upload to thumbs bucket
+    const urlResp = await fetch(CONFIG.ApiBase + '/get-upload-url', {
+      method: 'POST',
+      headers: { Authorization: tok, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'avatar', fileType: 'image/jpeg' }),
+    });
+    if (!urlResp.ok) throw new Error('Could not get upload URL');
+    const { uploadUrl, s3Key } = await urlResp.json();
+    // Upload directly to S3
+    const putResp = await fetch(uploadUrl, {
+      method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: file,
+    });
+    if (!putResp.ok) throw new Error('S3 upload failed');
+    _currentAvatarKey = s3Key;
+    // Preview locally
+    const localUrl = URL.createObjectURL(file);
+    const initial = (document.getElementById('prof-name').value || '?').charAt(0).toUpperCase();
+    _setAvatarImg(localUrl, initial);
+    st.textContent = 'Photo uploaded — save profile to confirm.'; st.className = 'pf-status ok';
+  } catch(e) {
+    st.textContent = 'Avatar upload failed: ' + e.message; st.className = 'pf-status err';
+  }
+}
+
 // ── Photographer Profile ──────────────────────────────────────────────────
 let _profileEquipment=[];
 async function loadProfile(){
@@ -1113,6 +1306,14 @@ async function loadProfile(){
     document.getElementById('prof-bio').value=p.bio||'';
     _profileEquipment=(p.equipment||[]).map(e=>({...e}));
     renderEquipment();
+    // Set avatar
+    const initial = (p.displayName||'P').charAt(0).toUpperCase();
+    if (p.avatarUrl) {
+      _currentAvatarKey = p.avatarKey || '';
+      _setAvatarImg(p.avatarUrl, initial);
+    } else {
+      _setAvatarImg('', initial);
+    }
   }catch(e){console.warn('Profile load:',e);}
 }
 function renderEquipment(){
@@ -1145,6 +1346,7 @@ async function saveProfile(){
     bio:           document.getElementById('prof-bio').value.trim(),
     equipment:     _profileEquipment,
   };
+  if (_currentAvatarKey) body.avatarKey = _currentAvatarKey;
   try{
     const r=await fetch(CONFIG.ApiBase+'/profile',{
       method:'PUT',
@@ -1349,7 +1551,8 @@ function renderFlaggedPhotos(flagged){
   if(!flagged.length){
     wrap.innerHTML='<div class="review-empty"><i class="ti ti-shield-check" style="color:var(--green);"></i><br>No photos awaiting review. All uploads passed moderation.</div>';
     return;
-wrap.innerHTML='<div class="review-grid">'+flagged.map(p=>{
+  }
+  wrap.innerHTML='<div class="review-grid">'+flagged.map(p=>{
     const labels=JSON.parse(p.moderationLabels||'[]');
     const labelStr=labels.map(l=>l.name+' ('+l.confidence+'%)').join(', ');
     return '<div class="review-card">'
@@ -1389,29 +1592,197 @@ function tryRestoreSession(){
   cu.getSession((err,s)=>{if(!err&&s.isValid())onAuthSuccess(cu,s);});
 }
 
-/* === Upload effects === */
-function buildEffectsGrid(){
-  document.getElementById('effectsGrid').innerHTML=EFFECTS.map(e=>
-    `<div class="ec" id="ec-${e.id}" onclick="toggleEffect('${e.id}')">
-      <i class="ti ${e.icon} effect-icon"></i><i class="ti ti-check ec-check"></i>
-      <div class="ec-name">${e.name}</div><div class="ec-desc">${e.desc}</div>
-    </div>`).join('');
-  // Also build compact re-process grid
-  document.getElementById('lbEffectsGrid').innerHTML=EFFECTS.map(e=>
-    `<div class="ec compact" id="lbec-${e.id}" onclick="toggleLbEffect('${e.id}')">
-      <i class="ti ${e.icon} effect-icon"></i><i class="ti ti-check ec-check"></i>
-      <div class="ec-name">${e.name}</div>
-    </div>`).join('');
+/* === Adjustment Panel ===================================================== */
+
+/** Return only the non-zero adjustments as [{id,value}] for the pipeline call */
+function getActiveAdjustments(adjState){
+  return ADJ_GROUPS.flatMap(g=>g.keys
+    .filter(k=>adjState[k.id]!==0)
+    .map(k=>({id:k.id,value:adjState[k.id]}))
+  );
 }
-function toggleEffect(id){
-  selectedEffects.has(id)?selectedEffects.delete(id):selectedEffects.add(id);
-  document.getElementById('ec-'+id).classList.toggle('on',selectedEffects.has(id));
-  const names=[...selectedEffects].map(id=>{const e=EFFECTS.find(x=>x.id===id);return e?`<b>${e.name}</b>`:id;});
-  document.getElementById('pipelineSummary').innerHTML=names.length?'Pipeline: '+names.join(' → '):'No effects selected — original only';
+
+/** Build (or rebuild) an adjustment panel inside containerId.
+ *  prefix = 'upload' | 'lb'   so element IDs don't collide. */
+function buildAdjPanel(prefix){
+  const containerId=prefix==='upload'?'adjPanel':'lbAdjPanel';
+  const adjState=prefix==='upload'?uploadAdj:lbAdj;
+  const openGroups=adjOpenGroups[prefix];
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  const activePreset=prefix==='upload'?uploadPreset:lbPreset;
+
+  const filterHtml=FILTER_PRESETS.map(p=>
+    `<div class="fp${activePreset===p.id?' active':''}" id="${prefix}-fp-${p.id}" onclick="applyPreset('${prefix}','${p.id}')">${p.name}</div>`
+  ).join('');
+
+  const groupsHtml=ADJ_GROUPS.map(g=>{
+    const isOpen=openGroups.has(g.id);
+    const rowsHtml=g.keys.map(k=>{
+      const v=adjState[k.id];
+      const display=v>0?'+'+v:String(v);
+      return `<div class="adj-row">
+        <span class="adj-lbl">${k.label}</span>
+        <input type="range" class="adj-range" id="${prefix}-sl-${k.id}" min="${k.min}" max="${k.max}" step="1" value="${v}"
+          oninput="onAdjSlide('${prefix}','${k.id}',this.value)">
+        <span class="adj-num" id="${prefix}-val-${k.id}">${display}</span>
+        <button class="adj-rst${v!==0?' show':''}" id="${prefix}-rst-${k.id}"
+          onclick="resetOneAdj('${prefix}','${k.id}')" aria-label="Reset ${k.label}">
+          <i class="ti ti-x" aria-hidden="true"></i>
+        </button>
+      </div>`;
+    }).join('');
+    const activeCount=g.keys.filter(k=>adjState[k.id]!==0).length;
+    return `<div class="adj-grp" id="${prefix}-grp-${g.id}">
+      <div class="adj-grp-head" onclick="toggleAdjGroup('${prefix}','${g.id}')">
+        <i class="ti ${g.icon} adj-grp-icon" aria-hidden="true"></i>
+        <span class="adj-grp-label">${g.label}</span>
+        <span class="adj-badge${activeCount?' has':''}" id="${prefix}-badge-${g.id}">${activeCount||''}</span>
+        <i class="ti ti-chevron-down adj-chev${isOpen?' open':''}" id="${prefix}-chev-${g.id}" aria-hidden="true"></i>
+      </div>
+      <div class="adj-grp-body${isOpen?' open':''}" id="${prefix}-body-${g.id}">${rowsHtml}</div>
+    </div>`;
+  }).join('');
+
+  const total=getActiveAdjustments(adjState).length;
+  const summaryHtml=total?`<b>${total}</b> adjustment${total===1?'':'s'}`:'No adjustments';
+
+  el.innerHTML=`
+    <div class="filter-strip-outer"><div class="filter-strip">${filterHtml}</div></div>
+    <div class="adj-divider"></div>
+    ${groupsHtml}
+    <div class="adj-summary">
+      <span class="adj-summary-text" id="${prefix}-adj-summary">${summaryHtml}</span>
+      <button class="adj-reset-all" onclick="resetAllAdj('${prefix}')">Reset all</button>
+    </div>`;
 }
-function toggleLbEffect(id){
-  lbSelectedEffects.has(id)?lbSelectedEffects.delete(id):lbSelectedEffects.add(id);
-  document.getElementById('lbec-'+id).classList.toggle('on',lbSelectedEffects.has(id));
+
+function toggleAdjGroup(prefix,gid){
+  const og=adjOpenGroups[prefix];
+  og.has(gid)?og.delete(gid):og.add(gid);
+  document.getElementById(prefix+'-body-'+gid).classList.toggle('open',og.has(gid));
+  document.getElementById(prefix+'-chev-'+gid).classList.toggle('open',og.has(gid));
+}
+
+function applyPreset(prefix,presetId){
+  const adjState=prefix==='upload'?uploadAdj:lbAdj;
+  ADJ_GROUPS.forEach(g=>g.keys.forEach(k=>{adjState[k.id]=0;}));
+  const p=FILTER_PRESETS.find(x=>x.id===presetId);
+  if(p) Object.entries(p.adj).forEach(([k,v])=>{if(k in adjState)adjState[k]=v;});
+  if(prefix==='upload') uploadPreset=presetId; else lbPreset=presetId;
+  buildAdjPanel(prefix);
+  if(prefix==='lb') updateLbPreview();
+}
+
+function onAdjSlide(prefix,id,val){
+  const adjState=prefix==='upload'?uploadAdj:lbAdj;
+  adjState[id]=parseInt(val,10);
+  if(prefix==='upload') uploadPreset='none'; else lbPreset='none';
+  const panelId=prefix==='upload'?'adjPanel':'lbAdjPanel';
+  document.querySelectorAll('#'+panelId+' .fp').forEach(el=>el.classList.remove('active'));
+  const nonePill=document.getElementById(prefix+'-fp-none');
+  if(nonePill) nonePill.classList.add('active');
+  const v=adjState[id];
+  const display=v>0?'+'+v:String(v);
+  const valEl=document.getElementById(prefix+'-val-'+id);
+  const rstEl=document.getElementById(prefix+'-rst-'+id);
+  if(valEl) valEl.textContent=display;
+  if(rstEl) rstEl.classList.toggle('show',v!==0);
+  updateAdjBadgeAndSummary(prefix,id);
+  if(prefix==='lb') updateLbPreview();
+}
+
+/* === Live lightbox preview via CSS filters ================================
+   Maps slider values to browser CSS filters for real-time visual feedback.
+   Note: This is an approximation — the actual Lambda processing uses numpy
+   per-pixel ops which are more accurate, especially for highlights/shadows.
+   CSS can't perfectly replicate all 15 adjustments but covers the main ones:
+   exposure, brightness, contrast, saturation, vibrance, warmth, tint, vignette.
+   ========================================================================== */
+function updateLbPreview(){
+  const img=document.getElementById('lbImg');
+  const vig=document.getElementById('lbVignette');
+  if(!img) return;
+  const a=lbAdj;
+
+  // Exposure: exponential (-100→0.25×, 0→1×, +100→4×)
+  const expFactor=2**(a.exposure/50);
+  // Brightness: linear
+  const briFactor=1+(a.brightness/100)*0.8;
+  // Brilliance: slight brightness lift + saturation
+  const brilBri=1+(a.brilliance/100)*0.2;
+  const brilSat=1+(a.brilliance/100)*0.3;
+  // Highlights/shadows: rough approximation via overall brightness
+  const toneBri=1+(a.highlights/100)*0.12+(a.shadows/100)*0.1+(a.blackpoint/100)*0.12;
+
+  const finalBri=Math.max(0.05, expFactor*briFactor*brilBri*toneBri);
+
+  // Contrast
+  const finalCon=Math.max(0.1, 1+(a.contrast/100)*0.8);
+
+  // Saturation + vibrance (vibrance selectively boosts muted colours; approximate with saturate)
+  const finalSat=Math.max(0, 1+(a.saturation/100)*1.5+(a.vibrance/100)*0.5+(a.brilliance/100)*0.3);
+
+  // Warmth → sepia for warm tones, slight hue rotation for cool
+  const warmSepia=a.warmth>0 ? (a.warmth/100)*0.45 : 0;
+  const warmHue  =a.warmth>0 ? -(a.warmth/100)*12  : -(a.warmth/100)*30;  // negative warmth → blue
+  // Tint → hue-rotate (~20 deg range, green positive, magenta negative)
+  const tintHue=(a.tint/100)*20;
+  const finalHue=warmHue+tintHue;
+
+  const parts=[
+    `brightness(${finalBri.toFixed(3)})`,
+    `contrast(${finalCon.toFixed(3)})`,
+    `saturate(${finalSat.toFixed(3)})`,
+  ];
+  if(warmSepia>0.005) parts.push(`sepia(${warmSepia.toFixed(3)})`);
+  if(Math.abs(finalHue)>0.5) parts.push(`hue-rotate(${finalHue.toFixed(1)}deg)`);
+
+  img.style.filter=parts.join(' ');
+
+  // Vignette: radial gradient overlay, opacity 0→0.85
+  if(vig) vig.style.opacity=(a.vignette/100)*0.85;
+}
+
+function resetLbPreview(){
+  const img=document.getElementById('lbImg');
+  const vig=document.getElementById('lbVignette');
+  if(img) img.style.filter='';
+  if(vig) vig.style.opacity=0;
+}
+
+function resetOneAdj(prefix,id){
+  const adjState=prefix==='upload'?uploadAdj:lbAdj;
+  adjState[id]=0;
+  const slEl=document.getElementById(prefix+'-sl-'+id);if(slEl)slEl.value=0;
+  const valEl=document.getElementById(prefix+'-val-'+id);if(valEl)valEl.textContent='0';
+  const rstEl=document.getElementById(prefix+'-rst-'+id);if(rstEl)rstEl.classList.remove('show');
+  updateAdjBadgeAndSummary(prefix,id);
+}
+
+function resetAllAdj(prefix){
+  const adjState=prefix==='upload'?uploadAdj:lbAdj;
+  ADJ_GROUPS.forEach(g=>g.keys.forEach(k=>{adjState[k.id]=0;}));
+  if(prefix==='upload') uploadPreset='none'; else lbPreset='none';
+  buildAdjPanel(prefix);
+  if(prefix==='lb') resetLbPreview();
+}
+
+function updateAdjBadgeAndSummary(prefix,changedId){
+  const adjState=prefix==='upload'?uploadAdj:lbAdj;
+  const g=ADJ_GROUPS.find(g=>g.keys.some(k=>k.id===changedId));
+  if(g){
+    const count=g.keys.filter(k=>adjState[k.id]!==0).length;
+    const badge=document.getElementById(prefix+'-badge-'+g.id);
+    if(badge){badge.textContent=count||'';badge.classList.toggle('has',count>0);}
+  }
+  const total=getActiveAdjustments(adjState).length;
+  const summaryEl=document.getElementById(prefix+'-adj-summary');
+  if(summaryEl)summaryEl.innerHTML=total?`<b>${total}</b> adjustment${total===1?'':'s'}`:'No adjustments';
+}
+
+function initAdjPanels(){
+  buildAdjPanel('lb');
 }
 function toggleEdition(){
   isLimitedEdition=!isLimitedEdition;
@@ -1470,14 +1841,14 @@ async function handleUpload(){
       el.innerHTML=`<div class="status-step active"><i class="ti ti-loader ti-spin"></i><span>${prefix}Uploading to S3…</span></div>`;
       const putR=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':file.type},body:file});
       if(!putR.ok)throw new Error('S3 upload failed (HTTP '+putR.status+')');
-      el.innerHTML=`<div class="status-step active"><i class="ti ti-loader ti-spin"></i><span>${prefix}Starting processing pipeline…</span></div>`;
+      el.innerHTML=`<div class="status-step active"><i class="ti ti-loader ti-spin"></i><span>${prefix}Processing…</span></div>`;
       const procR=await fetch(CONFIG.ApiBase+'/process',{
         method:'POST',headers:{'Content-Type':'application/json','Authorization':currentIdToken},
-        body:JSON.stringify({s3Key,effects:[...selectedEffects],limitedEdition:isLimitedEdition})
+        body:JSON.stringify({s3Key,adjustments:[],limitedEdition:isLimitedEdition})
       });
       if(!procR.ok){const t=await procR.text();throw new Error('Pipeline failed: '+t);}
       succeeded++;
-      el.innerHTML=`<div class="status-step done"><i class="ti ti-circle-check"></i><span>${prefix}Pipeline running…</span></div>`;
+      el.innerHTML=`<div class="status-step done"><i class="ti ti-circle-check"></i><span>${prefix}Uploaded! Open in your library to adjust.</span></div>`;
     }catch(err){
       failed++;
       el.innerHTML=`<div class="status-step" style="color:var(--red)"><i class="ti ti-alert-circle"></i><span>${prefix}${err.message}</span></div>`;
@@ -1591,16 +1962,21 @@ function openLB(idx){
   document.getElementById('lbDate').textContent=d?'Uploaded '+new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
   document.getElementById('lbTags').innerHTML=(p.tags||[]).map(t=>`<span class="tag-chip">${t.Name||t}</span>`).join('');
   // Reset panels
-  lbSelectedEffects=new Set();
-  document.querySelectorAll('#lbEffectsGrid .ec').forEach(el=>el.classList.remove('on'));
-  document.getElementById('lbReprocess').classList.remove('open');
+  Object.assign(lbAdj,ADJ_DEFAULTS); lbPreset='none';
+  buildAdjPanel('lb');
+  resetLbPreview();
+  document.getElementById('lbReprocess').classList.add('open');
+  const catSel=document.getElementById('lbCategorySelect');
+  if(catSel) catSel.value=p.category||'';
+  const moodSel=document.getElementById('lbColorMoodSelect');
+  if(moodSel) moodSel.value=p.colorMood||'';
   document.getElementById('lbRpStatus').textContent='';
   document.getElementById('lbAiFb').classList.remove('open');
   document.getElementById('lbAiFb').innerHTML='';
   _resetAudioPanel();
   document.getElementById('lb').classList.add('open');
 }
-function closeLB(){_resetAudioPanel();document.getElementById('lb').classList.remove('open');_lbPhoto=null;}
+function closeLB(){_resetAudioPanel();resetLbPreview();document.getElementById('lb').classList.remove('open');_lbPhoto=null;}
 
 /* === AI Composition Feedback === */
 // AWS Cert Note (MLA-C01): Bedrock InvokeModel is billed per input+output token.
@@ -1626,6 +2002,7 @@ async function loadCompositionFeedback(){
   panel.innerHTML='<div class="aifb-loading"><i class="ti ti-sparkles"></i> Analysing composition with Claude Haiku…</div>';
   try{
     const r=await fetch(CONFIG.ApiBase+'/composition-feedback?photoId='+encodeURIComponent(p.photoId),
+      {headers:{Authorization:'Bearer '+currentIdToken}});
     const {feedback:fb,cached}=await r.json();
     _renderAiFeedback(panel,fb,cached);
     // Update cached value on the in-memory photo object
@@ -1670,18 +2047,50 @@ function toggleReprocess(){
   const panel=document.getElementById('lbReprocess');
   panel.classList.toggle('open');
   if(!panel.classList.contains('open')){
-    lbSelectedEffects=new Set();
-    document.querySelectorAll('#lbEffectsGrid .ec').forEach(el=>el.classList.remove('on'));
+    Object.assign(lbAdj,ADJ_DEFAULTS); lbPreset='none';
+    buildAdjPanel('lb');
     document.getElementById('lbRpStatus').textContent='';
   }
+}
+
+/* === Save category + color mood without re-processing === */
+async function savePhotoMeta(){
+  if(!_lbPhoto) return;
+  const btn=document.getElementById('lbSaveMetaBtn');
+  const statusEl=document.getElementById('lbRpStatus');
+  btn.disabled=true; statusEl.textContent='Saving…'; statusEl.className='lb-rp-status';
+  try{
+    const category  = document.getElementById('lbCategorySelect')?.value  ?? '';
+    const colorMood = document.getElementById('lbColorMoodSelect')?.value ?? '';
+    // colorMood '' means "Auto-detect" — skip it so the pipeline-extracted value is preserved.
+    // Only include colorMood if the photographer explicitly chose one.
+    const payload = {photoId:_lbPhoto.photoId, category};
+    if (colorMood) payload.colorMood = colorMood;
+    const r=await fetch(CONFIG.ApiBase+'/photos/metadata',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':currentIdToken},
+      body:JSON.stringify(payload)
+    });
+    if(!r.ok){const t=await r.text();throw new Error(t);}
+    // Update in-memory record so the select shows the right value if lightbox reopens
+    _lbPhoto.category  = category;
+    _lbPhoto.colorMood = colorMood;
+    statusEl.textContent='Saved!'; statusEl.className='lb-rp-status ok';
+    showToast('Tags saved','ok');
+    setTimeout(()=>{ statusEl.textContent=''; },3000);
+  }catch(err){
+    statusEl.textContent='Failed: '+err.message; statusEl.className='lb-rp-status err';
+  }finally{ btn.disabled=false; }
 }
 
 /* === Re-process existing photo === */
 async function doReprocess(){
   if(!_lbPhoto){return;}
-  const s3Key=_lbPhoto.originalKey||_lbPhoto.s3Key;
+  // originalKey is the S3 key in OriginalsS3Bucket. Fall back to fileName which
+  // matches how get-upload-url named the file (raw filename = S3 key).
+  const s3Key=_lbPhoto.originalKey||_lbPhoto.s3Key||_lbPhoto.fileName||_lbPhoto.title;
   if(!s3Key){
-    document.getElementById('lbRpStatus').textContent='No original key available for this photo.';
+    document.getElementById('lbRpStatus').textContent='Cannot reprocess — original file key not found. Try re-uploading this photo.';
     document.getElementById('lbRpStatus').className='lb-rp-status err';
     return;
   }
@@ -1692,13 +2101,12 @@ async function doReprocess(){
     const r=await fetch(CONFIG.ApiBase+'/process',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':currentIdToken},
-      body:JSON.stringify({s3Key,effects:[...lbSelectedEffects],limitedEdition:false})
+      body:JSON.stringify({s3Key,adjustments:getActiveAdjustments(lbAdj),limitedEdition:false,category:document.getElementById('lbCategorySelect')?.value||'other',colorMood:document.getElementById('lbColorMoodSelect')?.value||''})
     });
     if(!r.ok){const t=await r.text();throw new Error(t);}
-    statusEl.textContent='Pipeline started! New version will appear in your library shortly.';
+    statusEl.textContent='Pipeline started — category & color mood save in ~30 seconds. Close this and refresh your library then.';
     statusEl.className='lb-rp-status ok';
     showToast('Re-processing started!','ok');
-    setTimeout(()=>{closeLB();loadGallery();},2500);
   }catch(err){
     statusEl.textContent='Failed: '+err.message;
     statusEl.className='lb-rp-status err';
@@ -1836,7 +2244,7 @@ function showToast(msg,type=''){
 
 /* === Init === */
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLB();closeDelConfirm();}});
-buildEffectsGrid();
+document.addEventListener('i18n:ready', initAdjPanels);
 showView('upload');
 tryRestoreSession();
 
@@ -2033,13 +2441,12 @@ async function loadSeriesList() {
   if (!grid) return;
   grid.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:20px 0">Loading…</div>';
   try {
-    const tok  = await getToken();
-    const user = await getCachedProfile();
-    if (!user || !user.photographerId) {
+    const tok = await getToken();
+    if (!tok || !currentSub) {
       grid.innerHTML = '<div style="color:var(--text-2);font-size:13px;padding:20px 0">Sign in to manage series.</div>';
       return;
     }
-    const r = await fetch(`${CONFIG.ApiBase}/series?photographerId=${encodeURIComponent(user.photographerId)}`, {
+    const r = await fetch(`${CONFIG.ApiBase}/series?photographerId=${encodeURIComponent(currentSub)}`, {
       headers: { Authorization: tok }
     });
     if (!r.ok) throw new Error(await r.text());
@@ -2049,6 +2456,7 @@ async function loadSeriesList() {
       return;
     }
     grid.innerHTML = series.map(s => _seriesCard(s)).join('');
+    _loadSeriesCovers();
   } catch (e) {
     grid.innerHTML = `<div style="color:var(--red);font-size:13px">${e.message}</div>`;
   }
@@ -2212,16 +2620,15 @@ async function saveSeries() {
   st.textContent = 'Saving…'; st.className = 'sm-status';
 
   try {
-    const tok  = await getToken();
-    const user = await getCachedProfile();
-    if (!user || !user.photographerId) throw new Error('Not signed in');
+    const tok = await getToken();
+    if (!tok || !currentSub) throw new Error('Not signed in');
 
     const payload = {
       title,
       description:    desc,
       photoIds:       _smOrder,
       coverPhotoId:   _smOrder[0] || '',
-      photographerId: user.photographerId,
+      photographerId: currentSub,
     };
 
     let url, method;
