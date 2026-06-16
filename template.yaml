@@ -1165,6 +1165,8 @@ Resources:
             TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
         - S3ReadPolicy:
             BucketName: !Sub ${AWS::StackName}-originals-${AWS::Region}-${AWS::AccountId}
+        - S3ReadPolicy:
+            BucketName: !Sub ${AWS::StackName}-thumbs-${AWS::Region}-${AWS::AccountId}
         - Statement:
             - Effect: Allow
               Action:

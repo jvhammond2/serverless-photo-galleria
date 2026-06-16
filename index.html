@@ -224,7 +224,11 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 .lb-close:hover{background:rgba(255,255,255,.1);}
 
 /* Re-process panel inside lightbox */
-.lb-reprocess{display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.lb-left{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+.lb-wrap.adj-open{flex-direction:row;max-width:1300px;align-items:stretch;}
+.lb-wrap.adj-open .lb-img-wrap{max-height:85vh;}
+.lb-wrap.adj-open .lb-img{max-height:85vh;}
+.lb-reprocess{display:none;width:320px;min-width:320px;overflow-y:auto;border-left:1px solid var(--border);padding:16px;}
 .lb-reprocess.open{display:block;}
 .lb-reprocess-title{font-size:12.5px;font-weight:600;margin-bottom:10px;color:var(--text-2);}
 .lb-rp-status{font-size:12px;color:var(--text-2);margin-top:10px;min-height:16px;}
@@ -873,6 +877,7 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 <div id="lb" onclick="if(event.target===this)closeLB()">
   <div class="lb-wrap">
     <div class="lb-close" onclick="closeLB()"><i class="ti ti-x"></i></div>
+    <div class="lb-left">
     <div class="lb-img-wrap">
       <img id="lbImg" class="lb-img" src="" alt="">
       <div id="lbVignette"></div>
@@ -907,8 +912,10 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
       <div class="lb-audio" id="lbAudio"></div>
       <!-- AI Composition Feedback panel -->
       <div class="lb-aifb" id="lbAiFb"></div>
-      <!-- Re-process panel -->
-      <div class="lb-reprocess" id="lbReprocess">
+    </div><!-- /lb-footer -->
+    </div><!-- /lb-left -->
+    <!-- Adjustments side panel -->
+    <div class="lb-reprocess" id="lbReprocess">
         <div class="lb-reprocess-title" data-i18n="lightbox.reprocess_title">Adjust &amp; Process Photo:</div>
         <div class="adj-panel" id="lbAdjPanel" style="margin-bottom:12px"></div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
@@ -973,7 +980,6 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
           <span class="lb-rp-status" id="lbRpStatus"></span>
         </div>
       </div>
-    </div>
   </div>
 </div>
 
@@ -1231,8 +1237,11 @@ function onAuthSuccess(cu,session){
   currentIdToken=session.getIdToken().getJwtToken();currentUser=cu;
   const p=session.getIdToken().payload;const name=p.name||p.email||'Photographer';
   currentSub=p.sub||'';
-  document.getElementById('userName').textContent=name;
-  document.getElementById('userAvatarInitial').textContent=name.charAt(0).toUpperCase();
+  const unEl=document.getElementById('userName');
+  if(unEl)unEl.textContent=name;
+  // Always restore avatar to initial — profile load will replace with photo if one exists
+  const avEl=document.getElementById('userAvatar');
+  if(avEl)avEl.innerHTML='<span id="userAvatarInitial">'+name.charAt(0).toUpperCase()+'</span>';
   document.getElementById('authScreen').classList.add('hidden');
   loadStats();loadGallery();
 }
@@ -2045,7 +2054,9 @@ function _renderAiFeedback(panel,fb,cached){
 
 function toggleReprocess(){
   const panel=document.getElementById('lbReprocess');
+  const wrap=panel.closest('.lb-wrap');
   panel.classList.toggle('open');
+  wrap.classList.toggle('adj-open', panel.classList.contains('open'));
   if(!panel.classList.contains('open')){
     Object.assign(lbAdj,ADJ_DEFAULTS); lbPreset='none';
     buildAdjPanel('lb');
