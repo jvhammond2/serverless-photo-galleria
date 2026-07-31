@@ -1,16 +1,17 @@
 """
-TriggerPipelineFunction — src/trigger_pipeline/app.py
+TriggerPipelineFunction -- src/trigger_pipeline/app.py
 ------------------------------------------------------
 POST /process
-  Body: { "s3Key": "photo.jpg", "effects": ["bw","sharp"], "limitedEdition": false, "category": "landscape" }
+  Body: {
+    "s3Key": "photo.jpg",
+    "adjustments": [{"id":"exposure","value":25}, {"id":"contrast","value":-10}],
+    "limitedEdition": false,
+    "category": "landscape"
+  }
 
-Why a Lambda wrapper instead of direct API → Step Functions integration?
-  SAM's built-in StateMachine API event uses an AWS service integration that
-  API Gateway controls entirely — it never adds CORS headers.  When a browser
-  calls the endpoint, it gets a response with no Access-Control-Allow-Origin
-  header and the fetch is blocked.  A Lambda proxy integration lets us add
-  CORS headers ourselves, translate effect IDs → processing actions, and
-  return a proper 200 immediately while the pipeline runs asynchronously.
+AWS Cert Note (DVA-C02): The adjustments list is passed through to Step
+Functions as-is. Processing decisions live in ProcessingFunction, keeping
+this Lambda thin (single-responsibility principle).
 
 Security: route uses PhotographerCognito authorizer (GalleriaUserPool only).
 """
@@ -20,10 +21,6 @@ import json
 import os
 import uuid
 
-# AWS Cert Note (DVA-C02 / SAA-C03): X-Ray is pre-installed in the Lambda
-# Python runtime — no requirements.txt entry needed.  patch_all() wraps
-# every boto3 client/resource so SDK calls appear as subsegments
-# automatically in the service map.
 from aws_xray_sdk.core import patch_all, xray_recorder
 patch_all()
 
@@ -37,31 +34,46 @@ HEADERS = {
     "Access-Control-Allow-Origin": "*",
 }
 
-# Translate frontend effect card IDs to processing-Lambda action strings.
-# An effect can map to zero, one, or multiple actions; duplicates are dropped.
-EFFECT_TO_ACTIONS = {
-    "hdr":        ["autoenhance"],
-    "cinematic":  ["saturate"],
-    "bw":         ["grayscale"],
-    "portrait":   ["sharpen"],
-    "landscape":  ["saturate"],
-    "golden":     ["sepia"],
-    "moody":      ["autoenhance"],
-    "sharp":      ["sharpen"],
-    "denoise":    ["denoise"],
-    "vignette":   [],                # visual effect not yet in processing Lambda
-    "film":       ["blur"],
-    "colour_pop": ["saturate"],
-    "vintage":    ["sepia"],
-    "aerial":     ["autoenhance"],
+VALID_CATEGORIES = {
+    "abstract", "aerial", "animals", "bw", "boudoir", "celebrities",
+    "city", "commercial", "concert", "family", "fashion", "film",
+    "fineart", "food", "journalism", "landscape", "macro", "nature",
+    "night", "other", "people", "performing", "sport", "stilllife",
+    "street", "transportation", "travel", "underwater", "urbex", "wedding",
+}
+
+VALID_ADJ_IDS = {
+    "exposure", "brilliance", "highlights", "shadows", "brightness",
+    "contrast", "blackpoint", "saturation", "vibrance", "warmth", "tint",
+    "sharpness", "definition", "noiseReduction", "vignette",
 }
 
 
-def _photographer_id(event: dict) -> str:
-    """Extract the photographer's Cognito sub from the authorizer claims."""
+def _photographer_id(event):
     ctx    = (event.get("requestContext") or {}).get("authorizer") or {}
     claims = ctx.get("claims") or {}
     return claims.get("sub") or claims.get("email") or ""
+
+
+def _sanitize_adjustments(raw):
+    """Validate and clamp each adjustment entry."""
+    result = []
+    seen   = set()
+    for item in (raw or []):
+        if not isinstance(item, dict):
+            continue
+        adj_id = str(item.get("id", "")).strip()
+        if adj_id not in VALID_ADJ_IDS or adj_id in seen:
+            continue
+        try:
+            value = int(item["value"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        value = max(-100, min(100, value))
+        if value != 0:
+            result.append({"id": adj_id, "value": value})
+        seen.add(adj_id)
+    return result
 
 
 def handler(event, context):
@@ -76,38 +88,29 @@ def handler(event, context):
         return {"statusCode": 400, "headers": HEADERS,
                 "body": json.dumps({"error": "s3Key is required"})}
 
-    # Validate category — must be one of the 30 allowed slugs (or empty → "other")
-    VALID_CATEGORIES = {
-        "abstract", "aerial", "animals", "bw", "boudoir", "celebrities",
-        "city", "commercial", "concert", "family", "fashion", "film",
-        "fineart", "food", "journalism", "landscape", "macro", "nature",
-        "night", "other", "people", "performing", "sport", "stilllife",
-        "street", "transportation", "travel", "underwater", "urbex", "wedding",
-    }
     category = (body.get("category") or "other").strip().lower()
     if category not in VALID_CATEGORIES:
         category = "other"
 
-    # Build ordered, deduplicated action list from selected effects
-    effects = body.get("effects", [])
-    seen, actions = set(), []
-    for effect_id in effects:
-        for action in EFFECT_TO_ACTIONS.get(effect_id, []):
-            if action not in seen:
-                seen.add(action)
-                actions.append(action)
+    VALID_MOODS = {"warm","cool","green","purple","neutral","dark","light",""}
+    color_mood  = (body.get("colorMood") or "").strip().lower()
+    if color_mood not in VALID_MOODS:
+        color_mood = ""
+
+    adjustments     = _sanitize_adjustments(body.get("adjustments", []))
+    photographer_id = _photographer_id(event)
 
     execution_input = json.dumps({
         "s3Bucket":       ORIGINALS_BUCKET,
         "s3Key":          s3_key,
-        "actions":        actions,
-        "photographerId": _photographer_id(event),
+        "adjustments":    adjustments,
+        "photographerId": photographer_id,
         "category":       category,
+        "colorMood":      color_mood,
     })
 
-    # Annotate the X-Ray segment so traces are searchable by photographer and
-    # category in the X-Ray console (filter: annotation.category = "landscape").
-    _annotate(photographerId=_photographer_id(event), category=category, s3Key=s3_key)
+    _annotate(photographerId=photographer_id, category=category,
+              s3Key=s3_key, adjustmentCount=len(adjustments))
 
     try:
         resp = sfn.start_execution(
@@ -116,7 +119,7 @@ def handler(event, context):
             input=execution_input,
         )
         execution_arn = resp["executionArn"]
-        print(f"[pipeline] Started execution: {execution_arn} for s3Key={s3_key}")
+        print(f"[pipeline] Started: {execution_arn}  key={s3_key}  adj={adjustments}")
         return {
             "statusCode": 200,
             "headers": HEADERS,

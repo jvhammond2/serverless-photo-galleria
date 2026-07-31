@@ -36,7 +36,7 @@ import uuid
 import boto3
 
 CORS = {
-    "Access-Control-Allow-Origin":  "*",
+    "Access-Control-Allow-Origin":  os.environ.get("ALLOWED_ORIGIN", "*"),
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
     "Access-Control-Allow-Methods": "POST,DELETE,OPTIONS",
 }
@@ -45,6 +45,11 @@ AUDIO_BUCKET    = os.environ["AUDIO_BUCKET"]
 METADATA_TABLE  = os.environ["METADATA_TABLE"]
 PUT_URL_TTL     = 900   # 15 minutes — enough for the browser to upload
 GET_URL_TTL     = 3600  # 1 hour — returned separately by search Lambda
+
+# Allowlist of permitted audio MIME types for presigned PUT URL generation.
+# Rejecting unknown content-types prevents using the audio bucket as a host
+# for arbitrary file types (HTML, JavaScript, executables, etc.).
+ALLOWED_AUDIO_TYPES = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg"}
 
 s3  = boto3.client("s3")
 ddb = boto3.resource("dynamodb")
@@ -75,10 +80,14 @@ def _handle_post(event):
         return _err(400, "Invalid JSON body")
 
     photo_id     = (body.get("photoId") or "").strip()
-    content_type = (body.get("contentType") or "audio/webm").strip()
+    content_type = (body.get("contentType") or "audio/webm").strip().lower()
 
     if not photo_id:
         return _err(400, "photoId is required")
+
+    # Validate content type against allowlist
+    if content_type not in ALLOWED_AUDIO_TYPES:
+        return _err(400, f"Content type not allowed. Accepted: {', '.join(sorted(ALLOWED_AUDIO_TYPES))}")
 
     # Validate the photo exists
     table = ddb.Table(METADATA_TABLE)

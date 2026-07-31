@@ -23,7 +23,7 @@ ddb  = boto3.resource("dynamodb")
 def handler(event, context):
     s3_bucket       = event["s3Bucket"]
     s3_key          = event["s3Key"]
-    actions         = event.get("actions", [])
+    adjustments         = event.get("adjustments", [])
     photographer_id = event.get("photographerId", "")
     category        = event.get("category", "other")
     _annotate(s3Key=s3_key, photographerId=photographer_id, category=category)
@@ -38,11 +38,11 @@ def handler(event, context):
         # On Rekognition error, let the photo through (fail-open) to avoid
         # blocking legitimate uploads due to transient AWS issues.
         print(f"Moderation check error (fail-open): {e}")
-        return _pass_through(s3_bucket, s3_key, actions, photographer_id, category)
+        return _pass_through(s3_bucket, s3_key, adjustments, photographer_id, category)
 
     if not labels:
         # Clean — no moderation labels detected
-        return _pass_through(s3_bucket, s3_key, actions, photographer_id, category)
+        return _pass_through(s3_bucket, s3_key, adjustments, photographer_id, category)
 
     # Flagged — record in DynamoDB and stop the pipeline
     flagged_labels = [
@@ -75,7 +75,7 @@ def handler(event, context):
     return {
         "s3Bucket":       s3_bucket,
         "s3Key":          s3_key,
-        "actions":        actions,
+        "adjustments":        adjustments,
         "moderated":      True,
         "photoId":        photo_id,
         "photographerId": photographer_id,
@@ -83,12 +83,12 @@ def handler(event, context):
     }
 
 
-def _pass_through(s3_bucket, s3_key, actions, photographer_id="", category="other"):
+def _pass_through(s3_bucket, s3_key, adjustments, photographer_id="", category="other"):
     _annotate(moderated="false")
     return {
         "s3Bucket":       s3_bucket,
         "s3Key":          s3_key,
-        "actions":        actions,
+        "adjustments":        adjustments,
         "moderated":      False,
         "photographerId": photographer_id,
         "category":       category,

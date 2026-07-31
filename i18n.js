@@ -211,15 +211,9 @@
       chosen = browser;
     }
 
-    if (chosen === 'en') {
-      // HTML is already in English — just mark the lang attribute and fire event
-      _lang = 'en';
-      document.documentElement.lang = 'en';
-      document.documentElement.dir = 'ltr';
-      document.dispatchEvent(new CustomEvent('i18n:ready', { detail: { lang: 'en' } }));
-    } else {
-      loadLanguage(chosen);
-    }
+    // Always load the JSON so window.i18n.t() works for dynamically rendered
+    // content (e.g. effects grid) regardless of language.
+    loadLanguage(chosen);
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────

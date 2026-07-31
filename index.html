@@ -131,7 +131,7 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 .adj-grp:last-of-type{border-bottom:none;}
 .adj-grp-head{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;}
 .adj-grp-icon{font-size:14px;color:var(--text-2);}
-.adj-grp-label{font-size:12.5px;font-weight:500;color:var(--text-1);flex:1;}
+.adj-grp-label{font-size:14px;font-weight:500;color:var(--text-1);flex:1;}
 .adj-badge{font-size:11px;background:var(--bg-base);border-radius:10px;padding:2px 7px;color:var(--text-3);
   border:1px solid var(--border);min-width:20px;text-align:center;}
 .adj-badge.has{background:var(--text-1);color:var(--bg-base);border-color:var(--text-1);}
@@ -140,9 +140,9 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 .adj-grp-body{padding:0 14px 10px;display:none;}
 .adj-grp-body.open{display:block;}
 .adj-row{display:flex;align-items:center;gap:9px;padding:5px 0;}
-.adj-lbl{font-size:11.5px;color:var(--text-2);width:108px;flex-shrink:0;}
+.adj-lbl{font-size:13px;color:var(--text-2);width:118px;flex-shrink:0;}
 .adj-range{flex:1;height:4px;accent-color:var(--text-1);cursor:pointer;}
-.adj-num{font-size:11.5px;font-weight:500;color:var(--text-1);width:30px;text-align:right;flex-shrink:0;}
+.adj-num{font-size:13px;font-weight:500;color:var(--text-1);width:34px;text-align:right;flex-shrink:0;}
 .adj-rst{width:16px;height:16px;border-radius:50%;background:var(--text-1);color:var(--bg-base);
   font-size:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;
   opacity:0;transition:opacity .15s;flex-shrink:0;border:none;padding:0;}
@@ -224,11 +224,9 @@ nav{flex:1;padding:12px 10px;overflow-y:auto;}
 .lb-close:hover{background:rgba(255,255,255,.1);}
 
 /* Re-process panel inside lightbox */
-.lb-left{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
-.lb-wrap.adj-open{flex-direction:row;max-width:1300px;align-items:stretch;}
-.lb-wrap.adj-open .lb-img-wrap{max-height:85vh;}
-.lb-wrap.adj-open .lb-img{max-height:85vh;}
-.lb-reprocess{display:none;width:320px;min-width:320px;overflow-y:auto;border-left:1px solid var(--border);padding:16px;}
+.lb-reprocess{display:none;position:fixed;top:0;right:0;width:420px;height:100vh;
+  overflow-y:auto;z-index:850;background:var(--bg-card);border-left:1px solid var(--border);
+  padding:20px 20px 40px;box-shadow:-4px 0 24px rgba(0,0,0,.5);}
 .lb-reprocess.open{display:block;}
 .lb-reprocess-title{font-size:12.5px;font-weight:600;margin-bottom:10px;color:var(--text-2);}
 .lb-rp-status{font-size:12px;color:var(--text-2);margin-top:10px;min-height:16px;}
@@ -1985,7 +1983,7 @@ function openLB(idx){
   _resetAudioPanel();
   document.getElementById('lb').classList.add('open');
 }
-function closeLB(){_resetAudioPanel();resetLbPreview();document.getElementById('lb').classList.remove('open');_lbPhoto=null;}
+function closeLB(){_resetAudioPanel();resetLbPreview();document.getElementById('lb').classList.remove('open');document.getElementById('lbReprocess').classList.remove('open');_lbPhoto=null;}
 
 /* === AI Composition Feedback === */
 // AWS Cert Note (MLA-C01): Bedrock InvokeModel is billed per input+output token.
@@ -2054,9 +2052,7 @@ function _renderAiFeedback(panel,fb,cached){
 
 function toggleReprocess(){
   const panel=document.getElementById('lbReprocess');
-  const wrap=panel.closest('.lb-wrap');
   panel.classList.toggle('open');
-  wrap.classList.toggle('adj-open', panel.classList.contains('open'));
   if(!panel.classList.contains('open')){
     Object.assign(lbAdj,ADJ_DEFAULTS); lbPreset='none';
     buildAdjPanel('lb');

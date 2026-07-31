@@ -258,6 +258,7 @@ def handler(event, context):
         preview_key = item.get("previewKey", "")
         photos.append({
             "photoId":          item.get("photoId"),
+            "originalKey":      item.get("originalKey", ""),
             "title":            item.get("title", ""),
             "description":      item.get("description", ""),
             "tags":             list(item.get("tags") or []),

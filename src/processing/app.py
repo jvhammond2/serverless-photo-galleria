@@ -8,31 +8,43 @@ Expected input event:
 {
     "s3Bucket": "galleria-originals-...",
     "s3Key":    "my-photo.jpg",
-    "actions":  ["exif_rotate", "sharpen", "watermark"]   # ordered list, may be empty
+    "adjustments": [
+        {"id": "exposure",   "value": 25},
+        {"id": "contrast",   "value": -10},
+        {"id": "vignette",   "value": 40}
+    ]
 }
 
-Supported actions (applied in the order supplied):
-  none          — publish as-is (no pixel changes)
-  exif_rotate   — correct phone/camera orientation from EXIF tag
-  autoenhance   — auto-contrast + gentle colour and brightness lift
-  grayscale     — classic black-and-white
-  sepia         — warm vintage tone
-  saturate      — vivid, punchy colours
-  sharpen       — studio-grade unsharp mask
-  blur          — cinematic gaussian soft-focus
-  denoise       — median-filter grain reduction
-  crop          — centre-square crop
-  letterbox     — pad to 3:2 widescreen canvas (black bars)
-  rotate        — 90 degrees clockwise
-  watermark     — semi-transparent text protection mark
-  webp          — convert output format to WebP (applied at save time)
+Supported adjustment IDs (all values -100..+100 unless noted):
+  exposure      — EV-style brightness (exponential response)
+  brilliance    — lift shadows + pull highlights + boost colour (like Apple Photos)
+  highlights    — tone curve on the upper luminance range
+  shadows       — tone curve on the lower luminance range
+  brightness    — linear overall brightness
+  contrast      — overall contrast
+  blackpoint    — lift shadow floor (0..+100 only)
+  saturation    — overall colour saturation
+  vibrance      — selective saturation (de-saturated pixels boosted most)
+  warmth        — colour temperature (+ warm, - cool)
+  tint          — green/magenta tint axis
+  sharpness     — unsharp mask strength (0..+100)
+  definition    — local contrast / clarity (0..+100)
+  noiseReduction— median filter strength (0..+100)
+  vignette      — radial darkening vignette (0..+100)
+
+Watermark is always applied last regardless of adjustments.
 
 Outputs:
-  PREVIEWS_BUCKET  <- full-size processed image  (e.g. previews/<uuid>.jpg)
-  THUMBS_BUCKET    <- 300x300 thumbnail           (e.g. thumbs/<uuid>.jpg)
+  PREVIEWS_BUCKET  <- full-size processed image  (previews/<uuid>.jpg)
+  THUMBS_BUCKET    <- 300x300 thumbnail           (thumbs/<uuid>.jpg)
 
 Returns to Step Functions:
   { photoId, originalKey, thumbnailKey, previewKey }
+
+AWS Cert Note (SAA-C03 / DVA-C02):
+  numpy is bundled via requirements.txt (not pre-installed in Python 3.13).
+  For large scale, consider using a Lambda Layer for numpy so the library is
+  cached at the execution environment level and cold starts are faster.
 """
 
 import io
@@ -40,6 +52,7 @@ import os
 import uuid
 
 import boto3
+import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 s3       = boto3.client("s3")
@@ -51,104 +64,246 @@ PREVIEWS_BUCKET  = os.environ["PREVIEWS_BUCKET"]
 PROFILE_TABLE    = os.environ.get("PROFILE_TABLE", "")
 WATERMARK_TEXT   = os.environ.get("WATERMARK_TEXT", "© Galleria")
 
-
-def _get_watermark_text(photographer_id: str | None) -> str:
-    """Return the photographer's custom watermark text if configured,
-    falling back to the stack-level default."""
-    if not photographer_id or not PROFILE_TABLE:
-        return WATERMARK_TEXT
-    try:
-        resp    = dynamodb.Table(PROFILE_TABLE).get_item(
-            Key={"profileId": photographer_id},
-            ProjectionExpression="watermarkText",
-        )
-        item    = resp.get("Item", {})
-        custom  = (item.get("watermarkText") or "").strip()
-        return custom if custom else WATERMARK_TEXT
-    except Exception:
-        return WATERMARK_TEXT
-
 THUMB_SIZE = (300, 300)
 
 
 # ---------------------------------------------------------------------------
-# Effect implementations
+# Watermark text helper
 # ---------------------------------------------------------------------------
 
-def effect_exif_rotate(img: Image.Image) -> Image.Image:
-    """Correct orientation stored in EXIF (phones always need this)."""
+def _get_watermark_text(photographer_id: str | None) -> str:
+    if not photographer_id or not PROFILE_TABLE:
+        return WATERMARK_TEXT
+    try:
+        resp   = dynamodb.Table(PROFILE_TABLE).get_item(
+            Key={"profileId": photographer_id},
+            ProjectionExpression="watermarkText",
+        )
+        custom = (resp.get("Item", {}).get("watermarkText") or "").strip()
+        return custom if custom else WATERMARK_TEXT
+    except Exception:
+        return WATERMARK_TEXT
+
+
+# ---------------------------------------------------------------------------
+# Utility: value → Pillow enhance factor
+#   value is an integer -100..+100 where 0 = no change.
+#   Maps to factor range [lo, 1.0, hi] using linear interpolation.
+# ---------------------------------------------------------------------------
+
+def _enhance_factor(value: int, lo: float, hi: float) -> float:
+    """Map an integer -100..+100 value to a Pillow enhance factor [lo..hi]."""
+    v = max(-100, min(100, int(value)))
+    if v >= 0:
+        return 1.0 + (hi - 1.0) * v / 100.0
+    else:
+        return 1.0 + (1.0 - lo) * v / 100.0   # v is negative so this subtracts
+
+
+def _to_arr(img: Image.Image) -> np.ndarray:
+    return np.array(img, dtype=np.float32)
+
+
+def _from_arr(arr: np.ndarray) -> Image.Image:
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
+
+
+# ---------------------------------------------------------------------------
+# Effect implementations — each accepts (img, value) and returns img
+# ---------------------------------------------------------------------------
+
+def effect_exif_rotate(img: Image.Image, value: int = 0) -> Image.Image:
+    """Always-on: correct phone/camera orientation from EXIF."""
     return ImageOps.exif_transpose(img)
 
 
-def effect_autoenhance(img: Image.Image) -> Image.Image:
-    """Auto-contrast + gentle colour and brightness lift."""
-    img = ImageOps.autocontrast(img, cutoff=0.5)
-    img = ImageEnhance.Color(img).enhance(1.2)
-    img = ImageEnhance.Brightness(img).enhance(1.05)
-    img = ImageEnhance.Contrast(img).enhance(1.1)
+def effect_exposure(img: Image.Image, value: int = 0) -> Image.Image:
+    """
+    Photographic exposure adjustment using an exponential response curve.
+    value -100 ≈ -2 stops (very dark), 0 = unchanged, +100 ≈ +2 stops (very bright).
+
+    AWS Cert: This is pure CPU compute — no AWS service calls.
+    Lambda billing is per GB-second, so more memory = more CPU = faster = cheaper.
+    """
+    if value == 0:
+        return img
+    factor = 2.0 ** (value / 50.0)   # -100→0.25, 0→1.0, +100→4.0
+    return ImageEnhance.Brightness(img).enhance(factor)
+
+
+def effect_brilliance(img: Image.Image, value: int = 0) -> Image.Image:
+    """
+    Apple-Photos-style brilliance: lifts shadows, reins in highlights, adds
+    a gentle colour boost — making the image feel vivid without overexposing.
+    """
+    if value == 0:
+        return img
+    img = effect_shadows(img, int(value * 0.45))
+    img = effect_highlights(img, -int(value * 0.2))
+    img = ImageEnhance.Color(img).enhance(1.0 + (value / 100.0) * 0.3)
     return img
 
 
-def effect_grayscale(img: Image.Image) -> Image.Image:
-    """Convert to black-and-white, keeping RGB mode for JPEG compatibility."""
-    return img.convert("L").convert("RGB")
+def effect_highlights(img: Image.Image, value: int = 0) -> Image.Image:
+    """Tone curve targeting bright pixels (luminance > 0.5)."""
+    if value == 0:
+        return img
+    arr  = _to_arr(img)
+    lum  = arr.mean(axis=2) / 255.0          # per-pixel average luminance 0..1
+    mask = np.clip((lum - 0.5) * 2, 0, 1)   # 0 for darks, 1 for very bright
+    mask = mask[:, :, np.newaxis]
+    adj  = (value / 100.0) * 60.0
+    return _from_arr(arr + mask * adj)
 
 
-def effect_sepia(img: Image.Image) -> Image.Image:
-    """Warm vintage sepia tone."""
-    grey = img.convert("L")
-    r = grey.point(lambda p: min(int(p * 1.12), 255))
-    g = grey.point(lambda p: int(p * 0.88))
-    b = grey.point(lambda p: max(int(p * 0.70), 0))
+def effect_shadows(img: Image.Image, value: int = 0) -> Image.Image:
+    """Tone curve targeting dark pixels (luminance < 0.5)."""
+    if value == 0:
+        return img
+    arr  = _to_arr(img)
+    lum  = arr.mean(axis=2) / 255.0
+    mask = np.clip((0.5 - lum) * 2, 0, 1)   # 1 for very dark, 0 for brights
+    mask = mask[:, :, np.newaxis]
+    adj  = (value / 100.0) * 60.0
+    return _from_arr(arr + mask * adj)
+
+
+def effect_brightness(img: Image.Image, value: int = 0) -> Image.Image:
+    """Linear overall brightness."""
+    if value == 0:
+        return img
+    return ImageEnhance.Brightness(img).enhance(_enhance_factor(value, 0.1, 2.0))
+
+
+def effect_contrast(img: Image.Image, value: int = 0) -> Image.Image:
+    """Overall contrast."""
+    if value == 0:
+        return img
+    return ImageEnhance.Contrast(img).enhance(_enhance_factor(value, 0.1, 2.0))
+
+
+def effect_blackpoint(img: Image.Image, value: int = 0) -> Image.Image:
+    """
+    Lift the shadow floor — maps pixel 0 to 'lift' and scales the rest.
+    value 0 = no change; +100 = heavy lift (faded / matte look).
+    """
+    if value <= 0:
+        return img
+    lift = int((value / 100.0) * 50)
+    lut  = [min(255, lift + int(i * (255 - lift) / 255)) for i in range(256)]
+    return img.point(lut * 3)
+
+
+def effect_saturation(img: Image.Image, value: int = 0) -> Image.Image:
+    """Overall colour saturation. -100 = full greyscale, +100 = hyper-vivid."""
+    if value == 0:
+        return img
+    return ImageEnhance.Color(img).enhance(_enhance_factor(value, 0.0, 2.5))
+
+
+def effect_vibrance(img: Image.Image, value: int = 0) -> Image.Image:
+    """
+    Selective saturation: boosts under-saturated pixels more than already-vivid
+    ones, protecting skin tones and skies from over-saturation.
+    """
+    if value == 0:
+        return img
+    arr    = _to_arr(img)
+    mx     = arr.max(axis=2)
+    mn     = arr.min(axis=2)
+    sat    = np.where(mx > 0, (mx - mn) / mx, 0)   # per-pixel saturation 0..1
+    boost  = (1.0 - sat) * (value / 100.0) * 0.9   # low-sat pixels get more boost
+    mean   = arr.mean(axis=2, keepdims=True)
+    arr    = mean + (arr - mean) * (1.0 + boost[:, :, np.newaxis])
+    return _from_arr(arr)
+
+
+def effect_warmth(img: Image.Image, value: int = 0) -> Image.Image:
+    """
+    Colour temperature:  positive = warm (amber), negative = cool (blue).
+    Implemented as opposing R and B channel shifts.
+    """
+    if value == 0:
+        return img
+    r, g, b = img.split()
+    shift   = int(abs(value) / 100.0 * 35)
+    if value > 0:
+        r = r.point(lambda p: min(255, p + shift))
+        b = b.point(lambda p: max(0, p - shift))
+    else:
+        r = r.point(lambda p: max(0, p - shift))
+        b = b.point(lambda p: min(255, p + shift))
     return Image.merge("RGB", (r, g, b))
 
 
-def effect_saturate(img: Image.Image) -> Image.Image:
-    """Boost colour saturation for vivid, punchy results."""
-    return ImageEnhance.Color(img).enhance(1.7)
+def effect_tint(img: Image.Image, value: int = 0) -> Image.Image:
+    """
+    Tint axis: positive = green, negative = magenta.
+    Adjusts the green channel while leaving R and B untouched.
+    """
+    if value == 0:
+        return img
+    r, g, b = img.split()
+    shift   = int(abs(value) / 100.0 * 20)
+    g = g.point(lambda p: min(255, p + shift) if value > 0 else max(0, p - shift))
+    return Image.merge("RGB", (r, g, b))
 
 
-def effect_sharpen(img: Image.Image) -> Image.Image:
-    """Unsharp mask — the standard photographic sharpening tool."""
-    return img.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
+def effect_sharpness(img: Image.Image, value: int = 0) -> Image.Image:
+    """
+    Photographic sharpening via unsharp mask with variable radius and strength.
+    Low values = gentle edge crispening; high values = aggressive fine-detail boost.
+    """
+    if value <= 0:
+        return img
+    radius  = 1.5 + (value / 100.0) * 1.5   # 1.5 → 3.0
+    percent = 80 + int(value * 2.2)           # 80 → 300
+    return img.filter(ImageFilter.UnsharpMask(radius=radius, percent=percent, threshold=3))
 
 
-def effect_blur(img: Image.Image) -> Image.Image:
-    """Cinematic gaussian soft-focus."""
-    return img.filter(ImageFilter.GaussianBlur(radius=10))
+def effect_definition(img: Image.Image, value: int = 0) -> Image.Image:
+    """
+    Definition / Clarity: large-radius unsharp mask that boosts mid-tone contrast,
+    making textures and fine detail pop without affecting overall brightness.
+    Equivalent to the 'Clarity' slider in Lightroom.
+    """
+    if value <= 0:
+        return img
+    percent = int(value * 1.8)   # up to 180 %
+    return img.filter(ImageFilter.UnsharpMask(radius=20, percent=percent, threshold=0))
 
 
-def effect_denoise(img: Image.Image) -> Image.Image:
-    """Median filter to soften high-ISO sensor noise."""
-    return img.filter(ImageFilter.MedianFilter(size=3))
+def effect_noise_reduction(img: Image.Image, value: int = 0) -> Image.Image:
+    """
+    Median filter noise reduction.  Low values use a 3x3 kernel (gentle);
+    high values use 5x5 (stronger, may soften fine detail).
+    """
+    if value <= 0:
+        return img
+    size = 5 if value >= 50 else 3
+    return img.filter(ImageFilter.MedianFilter(size=size))
 
 
-def effect_crop(img: Image.Image) -> Image.Image:
-    """Centre-square crop — removes equal amounts from the longer dimension."""
-    w, h = img.size
-    side = min(w, h)
-    left = (w - side) // 2
-    top  = (h - side) // 2
-    return img.crop((left, top, left + side, top + side))
-
-
-def effect_letterbox(img: Image.Image) -> Image.Image:
-    """Pad image to a consistent 3:2 widescreen canvas with black bars."""
-    w, h   = img.size
-    target = (max(w, int(h * 1.5)), max(h, int(w / 1.5)))
-    return ImageOps.pad(img, target, color=(0, 0, 0))
-
-
-def effect_rotate(img: Image.Image) -> Image.Image:
-    """Rotate 90 degrees clockwise."""
-    return img.rotate(270, expand=True)
+def effect_vignette(img: Image.Image, value: int = 0) -> Image.Image:
+    """
+    Radial darkening vignette -- darkens corners, leaving the centre bright.
+    Implemented as a numpy radial gradient multiplied into each channel.
+    """
+    if value <= 0:
+        return img
+    w, h     = img.size
+    arr      = _to_arr(img)
+    cy, cx   = h / 2.0, w / 2.0
+    Y, X     = np.ogrid[:h, :w]
+    dist     = np.sqrt(((X - cx) / cx) ** 2 + ((Y - cy) / cy) ** 2)
+    strength = (value / 100.0) * 0.85
+    mask     = np.clip(1.0 - dist * strength, 0, 1)[:, :, np.newaxis]
+    return _from_arr(arr * mask)
 
 
 def effect_watermark(img: Image.Image, watermark_text: str = "") -> Image.Image:
-    """Semi-transparent text watermark in the bottom-right corner.
-    Uses Pillow 10's load_default(size=) so no font files are required.
-    """
-    text = watermark_text or WATERMARK_TEXT
+    """Semi-transparent text watermark in the bottom-right corner."""
+    text      = watermark_text or WATERMARK_TEXT
     w, h      = img.size
     font_size = max(24, min(w, h) // 22)
     font      = ImageFont.load_default(size=font_size)
@@ -160,35 +315,38 @@ def effect_watermark(img: Image.Image, watermark_text: str = "") -> Image.Image:
     base    = img.convert("RGBA")
     overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
     draw    = ImageDraw.Draw(overlay)
-
-    margin = max(16, font_size // 2)
-    x = w - tw - margin
-    y = h - th - margin
-
+    margin  = max(16, font_size // 2)
+    x, y   = w - tw - margin, h - th - margin
     draw.text((x + 2, y + 2), text, font=font, fill=(0, 0, 0, 140))
     draw.text((x, y),         text, font=font, fill=(255, 255, 255, 210))
-
     return Image.alpha_composite(base, overlay).convert("RGB")
 
 
 # ---------------------------------------------------------------------------
-# Effect dispatch table
+# Dispatch table  (adjustment id -> function)
 # ---------------------------------------------------------------------------
 
-EFFECTS = {
-    "exif_rotate": effect_exif_rotate,
-    "autoenhance": effect_autoenhance,
-    "grayscale":   effect_grayscale,
-    "sepia":       effect_sepia,
-    "saturate":    effect_saturate,
-    "sharpen":     effect_sharpen,
-    "blur":        effect_blur,
-    "denoise":     effect_denoise,
-    "crop":        effect_crop,
-    "letterbox":   effect_letterbox,
-    "rotate":      effect_rotate,
-    "watermark":   effect_watermark,
+ADJUSTMENT_FNS = {
+    "exposure":        effect_exposure,
+    "brilliance":      effect_brilliance,
+    "highlights":      effect_highlights,
+    "shadows":         effect_shadows,
+    "brightness":      effect_brightness,
+    "contrast":        effect_contrast,
+    "blackpoint":      effect_blackpoint,
+    "saturation":      effect_saturation,
+    "vibrance":        effect_vibrance,
+    "warmth":          effect_warmth,
+    "tint":            effect_tint,
+    "sharpness":       effect_sharpness,
+    "definition":      effect_definition,
+    "noiseReduction":  effect_noise_reduction,
+    "vignette":        effect_vignette,
 }
+
+# Sharpening-family adjustments are applied last (before watermark) so they
+# don't interact with luminance/colour operations.
+SHARPEN_IDS = {"sharpness", "definition"}
 
 
 # ---------------------------------------------------------------------------
@@ -198,67 +356,65 @@ EFFECTS = {
 def handler(event, context):
     s3_bucket       = event["s3Bucket"]
     s3_key          = event["s3Key"]
-    actions         = event.get("actions", [])
+    adjustments     = event.get("adjustments", [])   # [{id, value}, ...]
     photographer_id = event.get("photographerId")
     photo_id        = str(uuid.uuid4())
 
-    # Resolve watermark text locally — avoids mutating module-level global
     watermark_text = _get_watermark_text(photographer_id)
 
-    print(f"Processing photoId={photo_id}  key={s3_key}  actions={actions}  watermark='{watermark_text}'")
+    print(f"Processing photoId={photo_id}  key={s3_key}  adjustments={adjustments}")
 
     # 1. Download original from S3
     obj        = s3.get_object(Bucket=s3_bucket, Key=s3_key)
     image_data = obj["Body"].read()
-
     with Image.open(io.BytesIO(image_data)) as src:
         img = src.copy()
 
-    # Normalise to RGB so every downstream save path is consistent
     if img.mode not in ("RGB",):
         img = img.convert("RGB")
 
-    # EXIF rotation is always applied first regardless of its position in the list
-    if "exif_rotate" in actions:
-        img = effect_exif_rotate(img)
+    # Always correct EXIF rotation first
+    img = effect_exif_rotate(img)
 
-    # "none" short-circuits all other pixel-level effects
-    if "none" not in actions:
-        for action in actions:
-            if action in ("exif_rotate", "webp", "none"):
-                continue
-            fn = EFFECTS.get(action)
-            if fn:
-                if action == "watermark":
-                    img = fn(img, watermark_text)
-                else:
-                    img = fn(img)
-                print(f"  Applied: {action}")
-            else:
-                print(f"  Skipped unknown action: {action}")
+    # Split adjustments: colour/tone first, sharpening last
+    colour_adjs  = [a for a in adjustments if a.get("id") not in SHARPEN_IDS]
+    sharpen_adjs = [a for a in adjustments if a.get("id") in SHARPEN_IDS]
 
-    # 2. Determine output format
-    use_webp     = "webp" in actions
-    ext          = "webp"  if use_webp else "jpg"
-    save_format  = "WEBP"  if use_webp else "JPEG"
-    save_kwargs  = {"quality": 88, "method": 6} if use_webp else {"quality": 88, "optimize": True}
-    content_type = "image/webp" if use_webp else "image/jpeg"
+    for adj in colour_adjs + sharpen_adjs:
+        adj_id = adj.get("id", "")
+        value  = int(adj.get("value", 0))
+        fn     = ADJUSTMENT_FNS.get(adj_id)
+        if fn:
+            img = fn(img, value)
+            print(f"  Applied: {adj_id}={value}")
+        else:
+            print(f"  Skipped unknown adjustment: {adj_id}")
+
+    # Watermark always applied last
+    img = effect_watermark(img, watermark_text)
+
+    # 2. Save as JPEG
+    save_kwargs  = {"quality": 88, "optimize": True}
+    content_type = "image/jpeg"
+    ext          = "jpg"
 
     # 3. Full-size preview -> PREVIEWS_BUCKET
     preview_key = f"previews/{photo_id}.{ext}"
     preview_buf = io.BytesIO()
-    img.save(preview_buf, format=save_format, **save_kwargs)
+    img.save(preview_buf, format="JPEG", **save_kwargs)
     preview_buf.seek(0)
-    s3.put_object(Bucket=PREVIEWS_BUCKET, Key=preview_key, Body=preview_buf, ContentType=content_type)
+    s3.put_object(Bucket=PREVIEWS_BUCKET, Key=preview_key,
+                  Body=preview_buf, ContentType=content_type)
 
     # 4. Thumbnail -> THUMBS_BUCKET (aspect-preserving, max 300x300)
     thumb = img.copy()
     thumb.thumbnail(THUMB_SIZE, Image.LANCZOS)
     thumb_key = f"thumbs/{photo_id}.{ext}"
     thumb_buf = io.BytesIO()
-    thumb.save(thumb_buf, format=save_format, **save_kwargs)
+    thumb.save(thumb_buf, format="JPEG", **save_kwargs)
     thumb_buf.seek(0)
-    s3.put_object(Bucket=THUMBS_BUCKET, Key=thumb_key, Body=thumb_buf, ContentType=content_type)
+    s3.put_object(Bucket=THUMBS_BUCKET, Key=thumb_key,
+                  Body=thumb_buf, ContentType=content_type)
 
     print(f"Saved: preview={preview_key}  thumb={thumb_key}")
 

@@ -11,14 +11,14 @@
         "Payload": {
           "s3Bucket.$":       "$.s3Bucket",
           "s3Key.$":          "$.s3Key",
-          "actions.$":        "$.actions",
+          "adjustments.$":    "$.adjustments",
           "photographerId.$": "$.photographerId"
         }
       },
       "ResultSelector": {
         "s3Bucket.$":       "$.Payload.s3Bucket",
         "s3Key.$":          "$.Payload.s3Key",
-        "actions.$":        "$.Payload.actions",
+        "adjustments.$":    "$.Payload.adjustments",
         "moderated.$":      "$.Payload.moderated",
         "photographerId.$": "$.Payload.photographerId"
       },
@@ -58,7 +58,7 @@
         "Payload": {
           "s3Bucket.$":       "$.s3Bucket",
           "s3Key.$":          "$.s3Key",
-          "actions.$":        "$.actions",
+          "adjustments.$":    "$.adjustments",
           "photographerId.$": "$.photographerId"
         }
       },

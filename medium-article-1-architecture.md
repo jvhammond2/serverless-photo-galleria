@@ -31,7 +31,7 @@ Three reasons drove that decision:
 
 **Operational simplicity.** AWS manages patching, scaling, and availability for every service in this stack. That frees up all available engineering time for features rather than infrastructure maintenance.
 
-**AWS certification alignment.** I'm actively studying for the AWS Solutions Architect Associate (SAA-C03) and Developer Associate (DVA-C02) certifications. Building real infrastructure with the services on those exams is a far better study method than flashcards.
+**AWS certification alignment.** I'm actively studying for the AWS Solutions Architect Associate (SAA-C03) and Solutions Architect Professional (SAP-C02) certifications. Building real infrastructure with the services on those exams is a far better study method than flashcards.
 
 ---
 
@@ -79,6 +79,8 @@ The tables include:
 | Table | Purpose |
 |---|---|
 | PhotoMetadataTable | Photo catalogue, tags, pricing, pHash, GPS |
+| ProfileTable | Photographer profile, bio, equipment, watermark text |
+| CartTable | Buyer shopping cart (active and pending items) |
 | OrdersTable | Completed purchase records |
 | CollectionsTable | Buyer collections (buyerId + photoId composite key) |
 | FollowsTable | Photographer follow relationships |
@@ -90,45 +92,76 @@ DynamoDB's pricing model — pay per read/write capacity consumed — fits the s
 
 ### Storage: Amazon S3 (Zero Public Access)
 
-Photos live in two S3 buckets: one for originals, one for processed thumbnails. Both buckets have public access blocked entirely. No one can reach an image by guessing its URL.
+Photo assets live in three dedicated S3 buckets: one for originals (the raw upload), one for processed thumbnails, and one for full-size previews served to browsing customers. A fourth bucket stores photographer audio notes. Two additional buckets host the static frontend HTML and JavaScript for each portal. All six have public access blocked entirely — no one can reach a file by guessing its URL.
 
-All asset access is mediated through CloudFront using **Origin Access Control (OAC)** — the current recommended replacement for the older Origin Access Identity (OAI) pattern. Photographers get pre-signed PUT URLs to upload directly to S3 without routing files through Lambda. Buyers get short-lived pre-signed GET URLs (300-second TTL) for downloads.
+All asset access is mediated through CloudFront using **Origin Access Control (OAC)** — the current recommended replacement for the older Origin Access Identity (OAI) pattern. Photographers get pre-signed PUT URLs to upload directly to S3 without routing bytes through Lambda. Buyers get short-lived pre-signed GET URLs for downloads — signed by the Lambda's IAM role, scoped to a single object, and expired after a short window so a leaked URL becomes useless quickly.
 
 ### CDN: Amazon CloudFront
 
 Four CloudFront distributions serve the application:
 - Photographer portal SPA
 - Customer portal SPA
-- Photo thumbnails
-- Original photo downloads
+- Photo thumbnails and previews
+- API endpoint (WAFv2 protected)
 
-Each distribution is protected by a WAFv2 Web ACL. The frontend files (HTML, JS) are deployed directly to S3 and served through CloudFront — no web servers, no containers.
+The API distribution sits behind a WAFv2 Web ACL with rate limiting and managed rule groups — every request to the backend passes through it before reaching API Gateway. The portal distributions serve the frontend files (HTML, JS) directly from S3 with no web servers or containers involved.
 
 ### Orchestration: AWS Step Functions
 
-When a photographer uploads a photo, an S3 event triggers a Step Functions Express Workflow that runs the image through a multi-step processing pipeline:
+When a photographer uploads a photo — or reprocesses one using the in-app adjustment tools — a Lambda function starts a Step Functions Standard Workflow that runs the photo through six stages:
 
 ```
-S3 Upload Event
-      │
-      ▼
-Step Functions Pipeline
-  ├── Blur
-  ├── Crop
-  ├── Resize
-  ├── Rotate
-  ├── Watermark (+ EXIF copyright embed)
-  └── Compress
-      │
-      ▼
-S3 Thumbnails Bucket → CloudFront
+Upload / Adjustment Submit
+        │
+        ▼
+  TriggerPipeline Lambda
+        │
+        ▼
+  Step Functions — PhotoPipelineStateMachine
+  ├── ModerateContent   → Rekognition scans for explicit content
+  │                       (quarantines photo and stops pipeline if flagged)
+  ├── ProcessImage      → Pillow generates thumbnail + preview,
+  │                       applies photographer adjustments
+  │                       (14 parameters: exposure, highlights, shadows,
+  │                       brightness, contrast, saturation, vibrance,
+  │                       warmth, tint, sharpness, definition, and more),
+  │                       burns watermark, embeds EXIF copyright metadata
+  ├── TagImage          → Extracts GPS/EXIF, computes perceptual hash (pHash),
+  │                       identifies dominant color palette, calls Rekognition
+  │                       for scene and object labels
+  ├── EnrichWithAI      → Bedrock (Claude) generates title, description,
+  │                       and keyword tags from the image
+  ├── EmbedPhoto        → Titan Embeddings generates a vector for
+  │                       semantic similarity search
+  └── NotifyProcessed   → EventBridge publishes photo.processed event
+                          (or photo.pipeline.failed on any stage error)
 ```
 
-Step Functions handles the orchestration, retry logic, and error handling between steps — none of that complexity lives in the Lambda code itself.
+The adjustment panel in the Photographer Portal — 14 parameters covering exposure, tone, color, and detail — feeds directly into this pipeline. When a photographer applies edits and clicks Process, those values are passed as input to Step Functions and consumed by the `ProcessImage` stage. The same pipeline that handles a fresh upload also handles a reprocess request, with the adjustment parameters riding along as pipeline state.
+
+Step Functions handles orchestration, retry logic, and error routing between stages — none of that complexity lives inside the Lambda functions themselves. Each function does exactly one job.
 
 ### Events: Amazon EventBridge
 
-Cross-region coordination happens through EventBridge. When something significant occurs in the primary region — a new photographer registration, a purchase — an event is published to a custom event bus and routed to the secondary region. This keeps both regions in sync beyond what DynamoDB GlobalTables handles at the data layer.
+The Step Functions pipeline publishes events to a custom EventBridge event bus at completion and on failure. A `photo.processed` event fires when a photo clears all six pipeline stages; `photo.pipeline.failed` fires if any stage errors out. Downstream consumers — SNS notifications, analytics handlers — subscribe to these events independently, with no direct coupling to the pipeline itself. This fan-out pattern means adding a new consumer (say, a thumbnail CDN warm-up function) requires zero changes to the pipeline code.
+
+### AI and Machine Learning: Rekognition, Bedrock, Titan, and Translate
+
+This is where the stack goes beyond a standard CRUD marketplace. Four AI/ML services are integrated directly into the photo pipeline.
+
+**Amazon Rekognition** runs content moderation on every uploaded photo before it reaches the catalogue. The pipeline stops immediately if explicit or sensitive content is detected — the photo is quarantined in DynamoDB and never published. This happens automatically, with no human review queue required for clean content.
+
+**Amazon Bedrock (Claude)** handles AI enrichment. After a photo passes moderation and processing, Bedrock analyzes the image and generates a title, description, and keyword tags. Photographers get a starting point rather than a blank form. This is the difference between a tool that helps photographers work faster and one that just stores their files.
+
+**Amazon Titan Embeddings** generates a vector representation of each photo, stored alongside the metadata record. This powers the "More like this" feature on the customer portal — a semantic similarity search that finds visually related photos without relying on manually assigned tags.
+
+**Amazon Translate** handles internationalization at deploy time, not at runtime. A single master file of English UI strings (`en.json`) is translated into 49 languages during the deployment process and saved as static JSON to S3. Every user gets their language served from CloudFront with zero per-request translation cost. At scale, the difference between calling Translate on every page load versus serving a cached file from edge is significant.
+
+### Observability: AWS X-Ray
+
+All 37 Lambda functions have X-Ray tracing enabled at the infrastructure level via `Tracing: Active` in the SAM globals — every function invocation generates a trace segment automatically. The eleven core functions (the upload pipeline, search, like, follow, feed, download, and profile) go further: they import the X-Ray SDK and call `patch_all()`, which instruments every boto3 call as a named subsegment. A DynamoDB read, an S3 put, a Rekognition call — each appears as its own timed node in the trace.
+
+The Step Functions pipeline has tracing enabled end-to-end, so an entire upload workflow from API Gateway through six Lambda stages appears as a single connected trace in the X-Ray console. Custom annotations (`photoId`, `userId`, `operation`) on each segment allow filtering traces by business context. When something goes wrong, the Service Map shows which node is red before you open a single log file.
 
 ---
 
@@ -161,10 +194,10 @@ A few things that weren't obvious going in:
 
 ## What's Next
 
-The next article in this series covers the image processing pipeline in depth — how Step Functions orchestrates the multi-step workflow, how watermarks are applied and copyright data is embedded in EXIF, and how perceptual hashing works for near-duplicate image detection.
+The next article in this series is where things get honest. Building this stack meant hitting real bugs — silent Lambda failures, CORS errors masking the actual HTTP status code, a missing IAM policy that made every photo's color mood default to "neutral" with no error message anywhere. Each one taught me something about AWS that a course alone wouldn't have surfaced.
 
 If you're studying for AWS certifications or building your first serverless project, I hope this series is useful. The full source code is on GitHub at [github.com/jvhammond2/serverless-photo-galleria](https://github.com/jvhammond2/serverless-photo-galleria).
 
 ---
 
-*Joel Hammond is a cloud developer studying for AWS SAA-C03 and DVA-C02 certifications while building production-grade serverless applications.*
+*Joel is a cloud developer and AWS Solutions Architect candidate building production-grade serverless applications. He is a selected developer on the Digital Cloud Training collaborative program.*

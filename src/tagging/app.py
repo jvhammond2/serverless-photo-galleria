@@ -175,9 +175,10 @@ def handler(event, context):
     original_key    = event["originalKey"]
     thumbnail_key   = event["thumbnailKey"]
     preview_key     = event["previewKey"]
-    photographer_id = event.get("photographerId", "")
-    category        = event.get("category", "other")
-    file_name       = original_key.rsplit("/", 1)[-1]
+    photographer_id    = event.get("photographerId", "")
+    category           = event.get("category", "other")
+    color_mood_override = event.get("colorMood", "").strip().lower()  # manual override
+    file_name          = original_key.rsplit("/", 1)[-1]
 
     # ── 1. Rekognition label detection ───────────────────────────────────────
     reko_resp = rekognition.detect_labels(
@@ -227,6 +228,11 @@ def handler(event, context):
         print(f"Palette for {photo_id}: colors={dominant_colors}, mood={color_mood}")
     except Exception as e:
         print(f"Palette extraction S3 read failed (non-fatal): {e}")
+    # Photographer-provided override takes precedence over auto-detected mood
+    VALID_MOODS = {"warm","cool","green","purple","neutral","dark","light"}
+    if color_mood_override in VALID_MOODS:
+        color_mood = color_mood_override
+        print(f"Color mood overridden to: {color_mood}")
 
     # ── 3. Write metadata record ──────────────────────────────────────────────
     now_iso = datetime.now(timezone.utc).isoformat()

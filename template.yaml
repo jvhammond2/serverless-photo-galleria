@@ -1359,6 +1359,7 @@ Resources:
         Variables:
           ORIGINALS_BUCKET: !Ref OriginalsS3Bucket
           THUMBS_BUCKET:    !Ref ThumbsS3Bucket
+          ALLOWED_ORIGIN:   !Sub "https://${FrontendDistribution.DomainName}"
       Policies:
         - S3WritePolicy:
             BucketName: !Ref OriginalsS3Bucket
@@ -1388,6 +1389,7 @@ Resources:
         Variables:
           STATE_MACHINE_ARN: !Ref PhotoPipelineStateMachine
           ORIGINALS_BUCKET:  !Ref OriginalsS3Bucket
+          ALLOWED_ORIGIN:    !Sub "https://${FrontendDistribution.DomainName}"
       Policies:
         - Statement:
             - Effect: Allow
@@ -1417,6 +1419,7 @@ Resources:
           ORIGINALS_BUCKET: !Ref OriginalsS3Bucket
           THUMBS_BUCKET:    !Ref ThumbsS3Bucket
           PREVIEWS_BUCKET:  !Ref FullSizePreviewsS3Bucket
+          ALLOWED_ORIGIN:   !Sub "https://${FrontendDistribution.DomainName}"
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Sub ${AWS::StackName}-metadata-catalog-${AWS::AccountId}
@@ -2169,6 +2172,7 @@ Resources:
         Variables:
           AUDIO_BUCKET:   !Ref AudioStoriesS3Bucket
           METADATA_TABLE: !Ref PhotoMetadataTable
+          ALLOWED_ORIGIN: !Sub "https://${FrontendDistribution.DomainName}"
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref PhotoMetadataTable

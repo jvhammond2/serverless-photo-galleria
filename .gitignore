@@ -366,3 +366,6 @@ aws_credentials.txt
 resume_*.docx
 index-v2.html
 customer-v2.html
+
+# Backup files
+*.bak
