@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f1117; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 32px; }
+
+  .diagram { width: 680px; margin: 0 auto; }
+
+  .title {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8b92a5;
+    margin-bottom: 28px;
+  }
+
+  /* Entry node */
+  .entry {
+    background: #1a2235;
+    border: 1px solid #2a3a55;
+    border-radius: 8px;
+    padding: 10px 16px;
+    text-align: center;
+    width: 220px;
+    margin: 0 auto;
+  }
+  .entry-label { font-size: 11px; color: #5a7aaa; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+  .entry-title { font-size: 13px; color: #c8d4f0; font-weight: 600; }
+
+  /* Arrow */
+  .arrow {
+    text-align: center;
+    color: #2a3a55;
+    font-size: 18px;
+    line-height: 28px;
+    margin: 2px 0;
+  }
+
+  /* Lambda trigger */
+  .trigger {
+    background: #151c2e;
+    border: 1px solid #1e3060;
+    border-radius: 8px;
+    padding: 10px 16px;
+    text-align: center;
+    width: 220px;
+    margin: 0 auto;
+  }
+  .trigger-label { font-size: 10px; color: #3a5a9a; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+  .trigger-title { font-size: 13px; color: #7aa0e0; font-weight: 700; }
+
+  /* Step Functions container */
+  .sfn-wrapper {
+    border: 1.5px solid #1e3a60;
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 4px;
+    background: #0c1220;
+  }
+
+  .sfn-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #2a5090;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+
+  /* Stage rows */
+  .stage {
+    display: flex;
+    align-items: stretch;
+    margin-bottom: 6px;
+    gap: 10px;
+  }
+
+  .stage-box {
+    border-radius: 7px;
+    padding: 9px 12px;
+    flex-shrink: 0;
+    width: 148px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .stage-name {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .stage-service {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.6;
+  }
+
+  .stage-desc {
+    flex: 1;
+    background: #0a1020;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 10px;
+    color: #8090b0;
+    line-height: 1.5;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Stage colours */
+  .s1 { background: #1a1428; border: 1px solid #3a1a6a; }
+  .s1 .stage-name { color: #b06af5; }
+  .s1 .stage-service { color: #7040c0; }
+
+  .s2 { background: #0e2020; border: 1px solid #1a4a3a; }
+  .s2 .stage-name { color: #40c8a0; }
+  .s2 .stage-service { color: #208060; }
+
+  .s3 { background: #1a1808; border: 1px solid #3a3010; }
+  .s3 .stage-name { color: #d0a030; }
+  .s3 .stage-service { color: #906818; }
+
+  .s4 { background: #0e1a28; border: 1px solid #1a3050; }
+  .s4 .stage-name { color: #50a0f0; }
+  .s4 .stage-service { color: #2060a0; }
+
+  .s5 { background: #0e1828; border: 1px solid #1a2a50; }
+  .s5 .stage-name { color: #6080d0; }
+  .s5 .stage-service { color: #304080; }
+
+  .s6 { background: #0e1a14; border: 1px solid #1a3824; }
+  .s6 .stage-name { color: #50c870; }
+  .s6 .stage-service { color: #20603a; }
+
+  /* Connector dots between stages */
+  .connector {
+    display: flex;
+    align-items: center;
+    padding-left: 68px;
+    margin: 1px 0;
+    color: #1e3050;
+    font-size: 14px;
+  }
+
+  /* Error band */
+  .error-band {
+    margin-top: 10px;
+    background: #180c0c;
+    border: 1px solid #3a1010;
+    border-radius: 6px;
+    padding: 7px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .error-icon { font-size: 12px; }
+  .error-text { font-size: 10px; color: #a04040; line-height: 1.4; }
+  .error-text strong { color: #d06060; }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 20px;
+    margin-top: 16px;
+    justify-content: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: #5a6a8a;
+  }
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+<div class="diagram">
+  <div class="title">Photo Processing Pipeline — AWS Step Functions</div>
+
+  <!-- Entry -->
+  <div class="entry">
+    <div class="entry-label">Trigger</div>
+    <div class="entry-title">Upload or Adjustment Submit</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- Lambda trigger -->
+  <div class="trigger">
+    <div class="trigger-label">Lambda</div>
+    <div class="trigger-title">TriggerPipeline</div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- Step Functions wrapper -->
+  <div class="sfn-wrapper">
+    <div class="sfn-label">AWS Step Functions — PhotoPipelineStateMachine</div>
+
+    <!-- Stage 1 -->
+    <div class="stage">
+      <div class="stage-box s1">
+        <div class="stage-name">ModerateContent</div>
+        <div class="stage-service">Rekognition</div>
+      </div>
+      <div class="stage-desc">Scans for explicit content. Quarantines the photo and stops the pipeline if flagged.</div>
+    </div>
+
+    <div class="connector">↓</div>
+
+    <!-- Stage 2 -->
+    <div class="stage">
+      <div class="stage-box s2">
+        <div class="stage-name">ProcessImage</div>
+        <div class="stage-service">Pillow · Lambda</div>
+      </div>
+      <div class="stage-desc">Generates thumbnail and preview, applies all 14 photographer adjustments, burns watermark, embeds copyright metadata.</div>
+    </div>
+
+    <div class="connector">↓</div>
+
+    <!-- Stage 3 -->
+    <div class="stage">
+      <div class="stage-box s3">
+        <div class="stage-name">TagImage</div>
+        <div class="stage-service">Rekognition · Lambda</div>
+      </div>
+      <div class="stage-desc">Extracts GPS and EXIF data, computes a visual fingerprint for duplicate detection, identifies dominant color palette and scene labels.</div>
+    </div>
+
+    <div class="connector">↓</div>
+
+    <!-- Stage 4 -->
+    <div class="stage">
+      <div class="stage-box s4">
+        <div class="stage-name">EnrichWithAI</div>
+        <div class="stage-service">Bedrock · Claude</div>
+      </div>
+      <div class="stage-desc">Generates a title, description, and keyword tags from the image using AI.</div>
+    </div>
+
+    <div class="connector">↓</div>
+
+    <!-- Stage 5 -->
+    <div class="stage">
+      <div class="stage-box s5">
+        <div class="stage-name">EmbedPhoto</div>
+        <div class="stage-service">Titan Embeddings</div>
+      </div>
+      <div class="stage-desc">Generates a mathematical fingerprint of the image to power "More like this" similarity search.</div>
+    </div>
+
+    <div class="connector">↓</div>
+
+    <!-- Stage 6 -->
+    <div class="stage">
+      <div class="stage-box s6">
+        <div class="stage-name">NotifyProcessed</div>
+        <div class="stage-service">EventBridge</div>
+      </div>
+      <div class="stage-desc">Publishes a photo.processed event so downstream services are notified the photo is ready.</div>
+    </div>
+
+    <!-- Error band -->
+    <div class="error-band">
+      <div class="error-icon">⚠</div>
+      <div class="error-text"><strong>On any stage failure:</strong> publishes photo.pipeline.failed to EventBridge and stops execution.</div>
+    </div>
+
+  </div>
+
+</div>
+</body>
+</html>
