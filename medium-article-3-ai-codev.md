@@ -20,13 +20,13 @@ The key word in that description is specific. The quality of the collaboration w
 
 ## What AI Does Well in This Context
 
-**Generating boilerplate with real structure.** Writing the skeleton of a Lambda function, the imports, handler signature, error handling, response formatting, and CORS headers, is the same pattern repeated 37 times. AI handles that correctly and consistently. What took me a session to write for the first function took minutes for each subsequent one, with the same structure and naming conventions throughout.
+**Generating boilerplate with real structure.** Writing the skeleton of a Lambda function, the imports, handler signature, error handling, response formatting, and CORS headers, is the same pattern repeated 38 times. AI handles that correctly and consistently. What took me a session to write for the first function took minutes for each subsequent one, with the same structure and naming conventions throughout.
 
 **Explaining AWS service behavior from first principles.** When something does not work the way the documentation suggests, AI can reason about why. The Cognito callback routing bug in Article 2, where the SDK routes onSuccess exceptions to onFailure, is not prominently documented. It is a design decision that makes sense once explained, but is not obvious from the error message. Getting a clear explanation of the mechanism changed how I debugged the rest of the project.
 
 **Catching things I was not looking for.** The most valuable moments were when a review surfaced something I had not asked about. The IDOR vulnerability in DeletePhotoFunction, the security hole where any photographer could delete another's photos, appeared during a formal code review, not during development. I asked for a security audit and got back a finding I had genuinely missed. That is the kind of thing a code review partner is supposed to do.
 
-**Holding context across a complex codebase.** A 2,600-line SAM template with 37 Lambda functions, 9 DynamoDB tables, and 4 CloudFront distributions is a lot to keep in working memory. Being able to ask which functions have S3ReadPolicy for the thumbs bucket and get an accurate answer from the actual template, rather than from general knowledge, changed how quickly I could reason about the system.
+**Holding context across a complex codebase.** A 2,737-line SAM template with 38 Lambda functions, 9 DynamoDB tables, and 4 CloudFront distributions is a lot to keep in working memory. Being able to ask which functions have S3ReadPolicy for the thumbs bucket and get an accurate answer from the actual template, rather than from general knowledge, changed how quickly I could reason about the system.
 
 ---
 
