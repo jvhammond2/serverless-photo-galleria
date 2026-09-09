@@ -76,6 +76,8 @@ What I came away from this project believing is that AI-assisted development is 
 
 For anyone early in their AWS journey: build something real. Use whatever tools help you build it. But insist on understanding every piece of it, because the day something breaks in production, no tool will debug it for you.
 
+Finally, I'm not done learning from this experience. I worked as a professional sports photographer in my teens and the Serverless Galleria project has piqued my interest in what I can do with my development, infrastructure, and AI skills. Stay tuned for more.
+
 ---
 
 *The full source code is on GitHub at [github.com/jvhammond2/serverless-photo-galleria](https://github.com/jvhammond2/serverless-photo-galleria). The architecture overview is in Part 1. The debugging war stories are in Part 2.*
